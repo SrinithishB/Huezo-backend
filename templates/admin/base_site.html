@@ -1,0 +1,338 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+
+  /* ════════════════════════════════════════════════
+     LIGHT MODE — force your brand colors
+     !important is required to beat Django's dark.css
+     ════════════════════════════════════════════════ */
+  :root,
+  [data-theme="light"] {
+    --primary:                  #F1555D !important;
+    --secondary:                #341417 !important;
+    --accent:                   #F1555D !important;
+    --primary-fg:               #fff !important;
+
+    --header-color:             #ffffff !important;
+    --header-branding-color:    #ffffff !important;
+    --header-bg:                #F1555D !important;
+    --header-link-color:        #ffffff !important;
+
+    --breadcrumbs-fg:           #ffffff !important;
+    --breadcrumbs-bg:           #341417 !important;
+    --breadcrumbs-link-fg:      #ffffff !important;
+    --breadcrumbs-separator:    #ffffff !important;
+
+    --link-fg:                  #c0141c !important;
+    --link-hover-color:         #341417 !important;
+    --link-selected-fg:         #341417 !important;
+
+    --sidebar-selected-color:   #ffffff !important;
+    --darkened-bg:              #f5f5f5 !important;
+    --selected-bg:              #fde8e9 !important;
+    --selected-row:             #fde8e9 !important;
+
+    --close-button-bg:          #341417 !important;
+    --close-button-hover-bg:    #F1555D !important;
+    --button-bg:                #F1555D !important;
+    --button-fg:                #ffffff !important;
+    --button-hover-bg:          #341417 !important;
+    --default-button-bg:        #341417 !important;
+    --default-button-hover-bg:  #F1555D !important;
+    --delete-button-bg:         #341417 !important;
+    --delete-button-hover-bg:   #F1555D !important;
+
+    --object-tools-fg:          #ffffff !important;
+    --object-tools-bg:          #F1555D !important;
+    --object-tools-hover-bg:    #341417 !important;
+
+    --body-fg:                  #333333 !important;
+    --body-bg:                  #ffffff !important;
+    --body-quiet-color:         #666666 !important;
+    --body-loud-color:          #000000 !important;
+    --content-bg:               #ffffff !important;
+    --table-bg:                 #ffffff !important;
+    --nav-sidebar-width:        290px !important;
+  }
+
+  /* ════════════════════════════════════════════════
+     LIGHT MODE — explicit element overrides
+     These beat Django's dark.css regardless of vars
+     ════════════════════════════════════════════════ */
+
+  /* Header */
+  #header {
+    background: #F1555D !important;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+  }
+
+  #branding h1,
+  #branding h1 a:link,
+  #branding h1 a:visited {
+    color: #ffffff !important;
+    font-size: 1.2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #branding .logo { height: 40px; width: auto; }
+
+  /* Breadcrumbs */
+  div.breadcrumbs {
+    background: #341417 !important;
+    color: #ffffff !important;
+  }
+  div.breadcrumbs a { color: #ffffff !important; }
+
+  /* Module/section headers (ACCOUNTS, ENQUIRIES, etc.) */
+  .module caption,
+  .module > h2,
+  #changelist .module caption {
+    background: #F1555D !important;
+    color: #ffffff !important;
+  }
+
+  /* Buttons */
+  .button, input[type=submit], input[type=button],
+  .submit-row input, a.button {
+    background:    #F1555D !important;
+    color:         #ffffff !important;
+    border:        none !important;
+    border-radius: 6px !important;
+  }
+  .button:hover, input[type=submit]:hover {
+    background: #341417 !important;
+  }
+
+  .deletelink, a.deletelink,
+  .button.default, input[type=submit].default {
+    background:    #341417 !important;
+    color:         #fff !important;
+    border-radius: 6px !important;
+  }
+  .deletelink:hover { background: #F1555D !important; }
+
+  /* Links */
+  a:link, a:visited { color: #c0141c; }
+  a:hover, a:focus  { color: #341417; }
+
+  /* Sidebar */
+  #nav-sidebar a:hover,
+  #nav-sidebar a:focus { color: #341417 !important; }
+
+  /* Object tools */
+  .object-tools a {
+    background: #F1555D !important;
+    color: #ffffff !important;
+  }
+  .object-tools a:hover {
+    background: #341417 !important;
+  }
+
+  /* Selected rows / highlighted bg */
+  tr.selected td { background: #fde8e9 !important; }
+
+
+  /* ════════════════════════════════════════════════
+     DARK MODE — system dark, skipped if user picked light
+     ════════════════════════════════════════════════ */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --primary:                  #F1555D !important;
+      --secondary:                #f07a7e !important;
+      --accent:                   #F1555D !important;
+      --primary-fg:               #fff !important;
+
+      --header-color:             #ffffff !important;
+      --header-branding-color:    #ffffff !important;
+      --header-bg:                #a01018 !important;
+      --header-link-color:        #ffffff !important;
+
+      --breadcrumbs-fg:           #f5c6c8 !important;
+      --breadcrumbs-bg:           #1e0a0b !important;
+      --breadcrumbs-link-fg:      #f5c6c8 !important;
+      --breadcrumbs-separator:    #f5c6c8 !important;
+
+      --link-fg:                  #f07a7e !important;
+      --link-hover-color:         #fbb3b6 !important;
+      --link-selected-fg:         #fbb3b6 !important;
+
+      --sidebar-selected-color:   #ffffff !important;
+      --darkened-bg:              #1a0708 !important;
+      --selected-bg:              #3d1315 !important;
+      --selected-row:             #3d1315 !important;
+
+      --close-button-bg:          #f07a7e !important;
+      --close-button-hover-bg:    #F1555D !important;
+      --button-bg:                #c0141c !important;
+      --button-fg:                #ffffff !important;
+      --button-hover-bg:          #F1555D !important;
+      --default-button-bg:        #c0141c !important;
+      --default-button-hover-bg:  #F1555D !important;
+      --delete-button-bg:         #7a0a0e !important;
+      --delete-button-hover-bg:   #c0141c !important;
+
+      --object-tools-fg:          #ffffff !important;
+      --object-tools-bg:          #c0141c !important;
+      --object-tools-hover-bg:    #F1555D !important;
+
+      --body-fg:                  #e8d5d6 !important;
+      --body-bg:                  #120506 !important;
+      --body-quiet-color:         #b89899 !important;
+      --body-loud-color:          #f5e8e8 !important;
+      --content-bg:               #1e0a0b !important;
+      --table-bg:                 #1e0a0b !important;
+      --nav-sidebar-width:        290px !important;
+    }
+
+    :root:not([data-theme="light"]) #header         { background: #a01018 !important; }
+    :root:not([data-theme="light"]) div.breadcrumbs { background: #1e0a0b !important; color: #f5c6c8 !important; }
+    :root:not([data-theme="light"]) div.breadcrumbs a { color: #f5c6c8 !important; }
+
+    :root:not([data-theme="light"]) .module caption,
+    :root:not([data-theme="light"]) .module > h2    { background: #a01018 !important; color: #ffffff !important; }
+
+    :root:not([data-theme="light"]) #content,
+    :root:not([data-theme="light"]) #content-main,
+    :root:not([data-theme="light"]) .module,
+    :root:not([data-theme="light"]) fieldset        { color: #e8d5d6; }
+
+    :root:not([data-theme="light"]) #result_list tbody tr td,
+    :root:not([data-theme="light"]) #result_list tbody tr th { color: #e8d5d6 !important; }
+    :root:not([data-theme="light"]) #result_list thead th    { background: #2a0e0f !important; color: #f5c6c8 !important; }
+    :root:not([data-theme="light"]) #result_list tr.row1     { background: #1e0a0b !important; }
+    :root:not([data-theme="light"]) #result_list tr.row2     { background: #240c0d !important; }
+
+    :root:not([data-theme="light"]) input[type=text],
+    :root:not([data-theme="light"]) input[type=password],
+    :root:not([data-theme="light"]) input[type=email],
+    :root:not([data-theme="light"]) input[type=number],
+    :root:not([data-theme="light"]) input[type=url],
+    :root:not([data-theme="light"]) textarea,
+    :root:not([data-theme="light"]) select          { background: #2a0e0f !important; color: #e8d5d6 !important; border-color: #5a2224 !important; }
+
+    :root:not([data-theme="light"]) #nav-sidebar    { background: #1a0708 !important; color: #e8d5d6 !important; }
+    :root:not([data-theme="light"]) #nav-sidebar a  { color: #f07a7e !important; }
+    :root:not([data-theme="light"]) #nav-sidebar a:hover { color: #fbb3b6 !important; }
+
+    :root:not([data-theme="light"]) .button,
+    :root:not([data-theme="light"]) input[type=submit] { background: #c0141c !important; color: #fff !important; }
+    :root:not([data-theme="light"]) .button:hover,
+    :root:not([data-theme="light"]) input[type=submit]:hover { background: #F1555D !important; }
+
+    :root:not([data-theme="light"]) .object-tools a  { background: #c0141c !important; }
+    :root:not([data-theme="light"]) .object-tools a:hover { background: #F1555D !important; }
+
+    :root:not([data-theme="light"]) .help, 
+    :root:not([data-theme="light"]) p.help           { color: #b89899 !important; }
+    :root:not([data-theme="light"]) .messagelist li  { color: #e8d5d6 !important; }
+    :root:not([data-theme="light"]) .paginator a,
+    :root:not([data-theme="light"]) .paginator .this-page { color: #f07a7e !important; }
+  }
+
+  /* ════════════════════════════════════════════════
+     DARK MODE — explicit [data-theme="dark"] toggle
+     ════════════════════════════════════════════════ */
+  [data-theme="dark"] {
+    --primary:                  #F1555D !important;
+    --secondary:                #f07a7e !important;
+    --accent:                   #F1555D !important;
+    --primary-fg:               #fff !important;
+    --header-bg:                #a01018 !important;
+    --header-color:             #ffffff !important;
+    --header-branding-color:    #ffffff !important;
+    --header-link-color:        #ffffff !important;
+    --breadcrumbs-fg:           #f5c6c8 !important;
+    --breadcrumbs-bg:           #1e0a0b !important;
+    --breadcrumbs-link-fg:      #f5c6c8 !important;
+    --breadcrumbs-separator:    #f5c6c8 !important;
+    --link-fg:                  #f07a7e !important;
+    --link-hover-color:         #fbb3b6 !important;
+    --link-selected-fg:         #fbb3b6 !important;
+    --sidebar-selected-color:   #ffffff !important;
+    --darkened-bg:              #1a0708 !important;
+    --selected-bg:              #3d1315 !important;
+    --selected-row:             #3d1315 !important;
+    --close-button-bg:          #f07a7e !important;
+    --close-button-hover-bg:    #F1555D !important;
+    --button-bg:                #c0141c !important;
+    --button-fg:                #ffffff !important;
+    --button-hover-bg:          #F1555D !important;
+    --default-button-bg:        #c0141c !important;
+    --default-button-hover-bg:  #F1555D !important;
+    --delete-button-bg:         #7a0a0e !important;
+    --delete-button-hover-bg:   #c0141c !important;
+    --object-tools-fg:          #ffffff !important;
+    --object-tools-bg:          #c0141c !important;
+    --object-tools-hover-bg:    #F1555D !important;
+    --body-fg:                  #e8d5d6 !important;
+    --body-bg:                  #120506 !important;
+    --body-quiet-color:         #b89899 !important;
+    --body-loud-color:          #f5e8e8 !important;
+    --content-bg:               #1e0a0b !important;
+    --table-bg:                 #1e0a0b !important;
+    --nav-sidebar-width:        290px !important;
+  }
+
+  [data-theme="dark"] #header         { background: #a01018 !important; }
+  [data-theme="dark"] div.breadcrumbs { background: #1e0a0b !important; color: #f5c6c8 !important; }
+  [data-theme="dark"] div.breadcrumbs a { color: #f5c6c8 !important; }
+
+  [data-theme="dark"] .module caption,
+  [data-theme="dark"] .module > h2    { background: #a01018 !important; color: #ffffff !important; }
+
+  [data-theme="dark"] #content,
+  [data-theme="dark"] #content-main,
+  [data-theme="dark"] .module,
+  [data-theme="dark"] fieldset        { color: #e8d5d6; }
+
+  [data-theme="dark"] #result_list tbody tr td,
+  [data-theme="dark"] #result_list tbody tr th { color: #e8d5d6 !important; }
+  [data-theme="dark"] #result_list thead th    { background: #2a0e0f !important; color: #f5c6c8 !important; }
+  [data-theme="dark"] #result_list tr.row1     { background: #1e0a0b !important; }
+  [data-theme="dark"] #result_list tr.row2     { background: #240c0d !important; }
+
+  [data-theme="dark"] input[type=text],
+  [data-theme="dark"] input[type=password],
+  [data-theme="dark"] input[type=email],
+  [data-theme="dark"] input[type=number],
+  [data-theme="dark"] input[type=url],
+  [data-theme="dark"] textarea,
+  [data-theme="dark"] select          { background: #2a0e0f !important; color: #e8d5d6 !important; border-color: #5a2224 !important; }
+
+  [data-theme="dark"] #nav-sidebar    { background: #1a0708 !important; color: #e8d5d6 !important; }
+  [data-theme="dark"] #nav-sidebar a  { color: #f07a7e !important; }
+  [data-theme="dark"] #nav-sidebar a:hover { color: #fbb3b6 !important; }
+
+  [data-theme="dark"] .button,
+  [data-theme="dark"] input[type=submit] { background: #c0141c !important; color: #fff !important; }
+  [data-theme="dark"] .button:hover,
+  [data-theme="dark"] input[type=submit]:hover { background: #F1555D !important; }
+
+  [data-theme="dark"] .object-tools a       { background: #c0141c !important; }
+  [data-theme="dark"] .object-tools a:hover { background: #F1555D !important; }
+
+  [data-theme="dark"] .help,
+  [data-theme="dark"] p.help           { color: #b89899 !important; }
+  [data-theme="dark"] .messagelist li  { color: #e8d5d6 !important; }
+  [data-theme="dark"] .paginator a,
+  [data-theme="dark"] .paginator .this-page { color: #f07a7e !important; }
+
+</style>
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}">
+    <img class="logo" src="{% static 'images/logo.png' %}" alt="Logo">
+    Admin
+  </a>
+</h1>
+{% endblock %}
