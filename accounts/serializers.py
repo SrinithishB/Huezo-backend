@@ -3,9 +3,7 @@ from django.utils import timezone
 from .models import User, Customer, UserRole
 
 
-# ======================================================================
 # AUTH SERIALIZERS
-# ======================================================================
 
 class RegisterSerializer(serializers.ModelSerializer):
     """
@@ -98,9 +96,7 @@ class ChangePasswordSerializer(serializers.Serializer):
         return attrs
 
 
-# ======================================================================
 # USER SERIALIZER
-# ======================================================================
 
 class UserDetailSerializer(serializers.ModelSerializer):
     is_locked = serializers.BooleanField(read_only=True)
@@ -117,9 +113,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
         ]
 
 
-# ======================================================================
 # CUSTOMER SERIALIZERS
-# ======================================================================
 
 class CustomerDetailSerializer(serializers.ModelSerializer):
     email        = serializers.EmailField(source="user.email", read_only=True)

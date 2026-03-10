@@ -36,79 +36,31 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    # ------------------------------------------------------------------ #
     # Primary key
-    # ------------------------------------------------------------------ #
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        help_text="Auto-generated primary key.",
-    )
-
-    # ------------------------------------------------------------------ #
+    id = models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False,help_text="Auto-generated primary key.",)
+    
     # Auth fields
-    # ------------------------------------------------------------------ #
-    email = models.EmailField(
-        max_length=255,
-        unique=True,
-        help_text="Login email address.",
-    )
+    email = models.EmailField( max_length=255,unique=True,help_text="Login email address.",)
     # password field is inherited from AbstractBaseUser (stored as bcrypt hash)
 
-    # ------------------------------------------------------------------ #
     # Role  —  drives ALL access control
-    # ------------------------------------------------------------------ #
-    role = models.CharField(
-        max_length=10,
-        choices=UserRole.choices,
-        default=UserRole.CUSTOMER,
-        help_text="'admin' | 'staff' | 'customer' — drives all access control.",
-    )
+    role = models.CharField(max_length=10,choices=UserRole.choices,default=UserRole.CUSTOMER,
+        help_text="'admin' | 'staff' | 'customer' — drives all access control.",)
 
-    # ------------------------------------------------------------------ #
     # Status
-    # ------------------------------------------------------------------ #
-    is_active = models.BooleanField(
-        default=True,
-        help_text="Soft-disable without deleting the record.",
-    )
+    is_active = models.BooleanField(default=True,help_text="Soft-disable without deleting the record.",)
 
     # Django admin panel gate — set to True ONLY for admins (see save())
-    is_staff = models.BooleanField(
-        default=False,
-        help_text="True only for admin role; controls Django admin panel access.",
-    )
+    is_staff = models.BooleanField(default=False,help_text="True only for admin role; controls Django admin panel access.",)
 
-    # ------------------------------------------------------------------ #
     # Brute-force / lockout
-    # ------------------------------------------------------------------ #
-    failed_login_attempts = models.SmallIntegerField(
-        default=0,
-        help_text="Increment on bad password; lock at threshold.",
-    )
-    locked_until = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="NULL means not locked; set to future datetime on lockout.",
-    )
+    failed_login_attempts = models.SmallIntegerField(default=0,help_text="Increment on bad password; lock at threshold.",)
+    locked_until = models.DateTimeField(null=True,blank=True,help_text="NULL means not locked; set to future datetime on lockout.",)
 
-    # ------------------------------------------------------------------ #
     # Audit timestamps
-    # ------------------------------------------------------------------ #
-    last_login_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Updated on every successful login.",
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Record creation timestamp.",
-    )
-    updated_at = models.DateTimeField(
-        auto_now=True,
-        help_text="Auto-updated on every save.",
-    )
+    last_login_at = models.DateTimeField(null=True, blank=True, help_text="Updated on every successful login.",)
+    created_at = models.DateTimeField(auto_now_add=True,help_text="Record creation timestamp.",)
+    updated_at = models.DateTimeField(auto_now=True, help_text="Auto-updated on every save.",)
 
     USERNAME_FIELD  = "email"
     REQUIRED_FIELDS = []
@@ -125,17 +77,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return f"{self.email} ({self.role})"
 
-    # ------------------------------------------------------------------ #
     # Override save() — keep is_staff in sync with role automatically
-    # ------------------------------------------------------------------ #
     def save(self, *args, **kwargs):
         # Only ADMIN role may access the Django admin panel
         self.is_staff = (self.role == UserRole.ADMIN)
         super().save(*args, **kwargs)
 
-    # ------------------------------------------------------------------ #
     # Role helpers
-    # ------------------------------------------------------------------ #
     @property
     def is_admin(self) -> bool:
         return self.role == UserRole.ADMIN
@@ -149,9 +97,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_customer(self) -> bool:
         return self.role == UserRole.CUSTOMER
 
-    # ------------------------------------------------------------------ #
     # Lockout helpers
-    # ------------------------------------------------------------------ #
     @property
     def is_locked(self) -> bool:
         """Return True if the account is currently locked out."""
@@ -182,96 +128,29 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class Customer(models.Model):
-    # ------------------------------------------------------------------ #
     # Primary key — also a FK to users table (1-to-1)
-    # ------------------------------------------------------------------ #
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        help_text="1-to-1 with users table.",
-    )
-    user = models.OneToOneField(
-        "User",
-        on_delete=models.CASCADE,
-        related_name="customer_profile",
-        help_text="Linked user account (role must be 'customer').",
-    )
+    id = models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False,help_text="1-to-1 with users table.",)
+    user = models.OneToOneField("User",on_delete=models.CASCADE,related_name="customer_profile",help_text="Linked user account (role must be 'customer').",)
 
-    # ------------------------------------------------------------------ #
     # Brand / contact info
-    # ------------------------------------------------------------------ #
-    brand_name = models.CharField(
-        max_length=200,
-        help_text="Trading name of the brand.",
-    )
-    contact_name = models.CharField(
-        max_length=150,
-        help_text="Primary point of contact.",
-    )
-    phone = models.CharField(
-        max_length=20,
-        help_text="Primary phone with country code.",
-    )
-    alternate_phone = models.CharField(
-        max_length=20,
-        null=True,
-        blank=True,
-        help_text="Secondary contact number.",
-    )
+    brand_name = models.CharField(max_length=200,help_text="Trading name of the brand.",)
+    contact_name = models.CharField(max_length=150,help_text="Primary point of contact.",)
+    phone = models.CharField(max_length=20,help_text="Primary phone with country code.",)
+    alternate_phone = models.CharField(max_length=20,null=True,blank=True,help_text="Secondary contact number.",)
 
-    # ------------------------------------------------------------------ #
     # Address
-    # ------------------------------------------------------------------ #
-    address_line1 = models.TextField(
-        null=True,
-        blank=True,
-        help_text="Street address.",
-    )
-    address_line2 = models.TextField(
-        null=True,
-        blank=True,
-        help_text="Area / landmark.",
-    )
-    city = models.CharField(
-        max_length=100,
-        null=True,
-        blank=True,
-        help_text="City.",
-    )
-    state = models.CharField(
-        max_length=100,
-        null=True,
-        blank=True,
-        help_text="State / province.",
-    )
-    pin_code = models.CharField(
-        max_length=12,
-        null=True,
-        blank=True,
-        help_text="Postal code.",
-    )
-    country = models.CharField(
-        max_length=80,
-        default="India",
-        help_text="Country.",
-    )
+    address_line1 = models.TextField(null=True,blank=True,help_text="Street address.",)
+    address_line2 = models.TextField(null=True,blank=True,help_text="Area / landmark.",)
+    city = models.CharField(max_length=100,null=True,blank=True,help_text="City.",)
+    state = models.CharField(max_length=100,null=True,blank=True,help_text="State / province.",)
+    pin_code = models.CharField(max_length=12,null=True,blank=True,help_text="Postal code.",)
+    country = models.CharField(max_length=80,default="India",help_text="Country.",)
 
-    # ------------------------------------------------------------------ #
     # Audit — who created this account
-    # ------------------------------------------------------------------ #
-    created_by_admin = models.ForeignKey(
-        "User",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="created_customers",
-        help_text="Which admin created this account.",
-    )
+    created_by_admin = models.ForeignKey("User",null=True,blank=True, on_delete=models.SET_NULL,related_name="created_customers",
+        help_text="Which admin created this account.",)
 
-    # ------------------------------------------------------------------ #
     # Timestamps
-    # ------------------------------------------------------------------ #
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -286,17 +165,8 @@ class Customer(models.Model):
     def __str__(self):
         return f"{self.brand_name} ({self.user.email})"
 
-    # ------------------------------------------------------------------ #
     # Helper
-    # ------------------------------------------------------------------ #
     def full_address(self) -> str:
         """Returns a formatted single-line address."""
-        parts = [
-            self.address_line1,
-            self.address_line2,
-            self.city,
-            self.state,
-            self.pin_code,
-            self.country,
-        ]
+        parts = [self.address_line1,self.address_line2,self.city,self.state,self.pin_code,self.country,]
         return ", ".join(p for p in parts if p)
