@@ -137,3 +137,20 @@ All protected routes require: `Authorization: Bearer <access_token>`
 { "customization_available", "images": [{ "storage_path", "sort_order" }],
   "created_by_admin", "updated_at" }
 ```
+
+**Fabrics List** `GET /catalogue/fabrics/`
+```json
+// Output
+{ "count", "next", "previous",
+  "results": [{ "id", "fabric_type", "fabric_name", "composition",
+                "width_cm", "price_per_meter", "stock_available_meters",
+                "effective_moq", "thumbnail_url", "is_active" }] }
+```
+
+**Fabrics Detail** `GET /catalogue/fabrics/<uuid>/`
+```json
+// Output — same as list item plus:
+{ "description", "moq_regular", "moq_new", "colour_options",
+  "images": [{ "image_url", "is_thumbnail", "sort_order" }],
+  "created_by", "created_at", "updated_at" }
+```

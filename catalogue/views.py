@@ -7,7 +7,10 @@ from .models import WLPrototype
 from .serializers import WLPrototypeListSerializer, WLPrototypeDetailSerializer
 
 
+# ======================================================================
 # CUSTOM FILTER
+# ======================================================================
+
 class WLPrototypeFilter(django_filters.FilterSet):
     """
     Allows filtering by:
@@ -27,7 +30,10 @@ class WLPrototypeFilter(django_filters.FilterSet):
         fields = ["for_gender", "garment_type", "collection_name", "is_prebooking"]
 
 
+# ======================================================================
 # VIEWS
+# ======================================================================
+
 class CatalogueListView(generics.ListAPIView):
     """
     GET /api/catalogue/
@@ -78,4 +84,75 @@ class CatalogueDetailView(generics.RetrieveAPIView):
     lookup_field       = "id"
 
     def get_queryset(self):
-        return WLPrototype.objects.filter(is_active=True).prefetch_related("images","created_by_admin",)
+        return WLPrototype.objects.filter(
+            is_active=True
+        ).prefetch_related(
+            "images",
+            "created_by_admin",
+        )
+
+
+# ======================================================================
+# FABRICS VIEWS
+# ======================================================================
+
+from .models import FabricsCatalogue
+from .serializers import FabricListSerializer, FabricDetailSerializer
+
+
+class FabricFilter(django_filters.FilterSet):
+    fabric_name = django_filters.CharFilter(lookup_expr="icontains")
+    composition = django_filters.CharFilter(lookup_expr="icontains")
+    price_min   = django_filters.NumberFilter(field_name="price_per_meter", lookup_expr="gte")
+    price_max   = django_filters.NumberFilter(field_name="price_per_meter", lookup_expr="lte")
+    width_min   = django_filters.NumberFilter(field_name="width_cm", lookup_expr="gte")
+    width_max   = django_filters.NumberFilter(field_name="width_cm", lookup_expr="lte")
+
+    class Meta:
+        model  = FabricsCatalogue
+        fields = ["fabric_type", "fabric_name", "composition"]
+
+
+class FabricsListView(generics.ListAPIView):
+    """
+    GET /api/catalogue/fabrics/
+    Returns paginated list of active fabrics.
+
+    Filters:
+      ?fabric_type=   regular | new | stock
+      ?fabric_name=   partial match
+      ?composition=   partial match
+      ?price_min=     price per meter >=
+      ?price_max=     price per meter <=
+      ?width_min=     width in cm >=
+      ?width_max=     width in cm <=
+      ?search=        searches fabric_name, description, composition
+      ?ordering=      fabric_name | price_per_meter | created_at
+    """
+    serializer_class   = FabricListSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends    = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class    = FabricFilter
+    search_fields      = ["fabric_name", "description", "composition"]
+    ordering_fields    = ["fabric_name", "price_per_meter", "created_at"]
+    ordering           = ["-created_at"]
+
+    def get_queryset(self):
+        return FabricsCatalogue.objects.filter(
+            is_active=True
+        ).prefetch_related("images")
+
+
+class FabricsDetailView(generics.RetrieveAPIView):
+    """
+    GET /api/catalogue/fabrics/<uuid>/
+    Returns full detail of a single fabric including all images.
+    """
+    serializer_class   = FabricDetailSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field       = "id"
+
+    def get_queryset(self):
+        return FabricsCatalogue.objects.filter(
+            is_active=True
+        ).prefetch_related("images", "created_by")

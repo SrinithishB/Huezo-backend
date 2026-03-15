@@ -64,3 +64,67 @@ class WLPrototypeDetailSerializer(serializers.ModelSerializer):
         if obj.created_by_admin:
             return {"id": str(obj.created_by_admin.id), "email": obj.created_by_admin.email}
         return None
+
+
+# ======================================================================
+# FABRICS SERIALIZERS
+# ======================================================================
+
+from .models import FabricsCatalogue, FabricsCatalogueImage
+
+
+class FabricImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = FabricsCatalogueImage
+        fields = ["id", "image_url", "is_thumbnail", "sort_order", "uploaded_at"]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return obj.image.url if obj.image else None
+
+
+class FabricListSerializer(serializers.ModelSerializer):
+    effective_moq = serializers.IntegerField(read_only=True)
+    thumbnail_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = FabricsCatalogue
+        fields = [
+            "id", "fabric_type", "fabric_name",
+            "composition", "width_cm", "price_per_meter",
+            "stock_available_meters", "effective_moq",
+            "thumbnail_url", "is_active",
+        ]
+
+    def get_thumbnail_url(self, obj):
+        request   = self.context.get("request")
+        thumbnail = obj.images.filter(is_thumbnail=True).first()
+        if thumbnail and thumbnail.image and request:
+            return request.build_absolute_uri(thumbnail.image.url)
+        return None
+
+
+class FabricDetailSerializer(serializers.ModelSerializer):
+    effective_moq = serializers.IntegerField(read_only=True)
+    images        = FabricImageSerializer(many=True, read_only=True)
+    created_by    = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = FabricsCatalogue
+        fields = [
+            "id", "fabric_type", "fabric_name", "description",
+            "moq_regular", "moq_new", "effective_moq",
+            "composition", "width_cm", "colour_options",
+            "price_per_meter", "stock_available_meters",
+            "is_active", "images",
+            "created_by", "created_at", "updated_at",
+        ]
+
+    def get_created_by(self, obj):
+        if obj.created_by:
+            return {"id": str(obj.created_by.id), "email": obj.created_by.email}
+        return None

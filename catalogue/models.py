@@ -116,3 +116,104 @@ class WLPrototypeImage(models.Model):
 
     def __str__(self):
         return f"Image #{self.sort_order} — {self.prototype.prototype_code}"
+
+
+# FABRICS CATALOGUE
+
+class FabricType(models.TextChoices):
+    REGULAR = "regular", "Regular"
+    NEW     = "new",     "New"
+    STOCK   = "stock",   "Stock"
+
+
+class FabricsCatalogue(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Core fields
+    fabric_type = models.CharField(
+        max_length=10,
+        choices=FabricType.choices,
+        help_text="'regular' | 'new' | 'stock' — drives MOQ and enquiry behaviour",
+    )
+    fabric_name = models.CharField(max_length=200, help_text="Display name of the fabric")
+    description = models.TextField(null=True, blank=True, help_text="Additional fabric details")
+
+    # MOQ — driven by fabric_type
+    # Regular = 400m, New = 1000m, Stock = no MOQ
+    moq_regular = models.IntegerField(default=400,  help_text="MOQ in meters for Regular fabrics")
+    moq_new     = models.IntegerField(default=1000, help_text="MOQ in meters for New fabrics")
+
+    # Fabric details
+    composition            = models.CharField(max_length=200, null=True, blank=True, help_text="e.g. 100% Cotton")
+    width_cm               = models.DecimalField(max_digits=5,  decimal_places=1, null=True, blank=True)
+    colour_options         = models.TextField(null=True, blank=True, help_text="Available colour variants")
+    price_per_meter        = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    stock_available_meters = models.DecimalField(max_digits=10, decimal_places=1, null=True, blank=True,
+                                                  help_text="Applicable for Stock fabric type only")
+
+    # Status & audit
+    is_active  = models.BooleanField(default=True, help_text="Controls visibility on the public Fabrics page")
+    created_by = models.ForeignKey(
+        "accounts.User",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_fabrics",
+        help_text="Admin who created the listing",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "fabrics_catalogue"
+        ordering = ["-created_at"]
+        verbose_name = "Fabric"
+        verbose_name_plural = "Fabrics Catalogue"
+        indexes = [
+            models.Index(fields=["fabric_type"], name="idx_fabric_type"),
+            models.Index(fields=["is_active"],   name="idx_fabric_active"),
+        ]
+
+    def __str__(self):
+        return f"{self.fabric_name} ({self.fabric_type})"
+
+    @property
+    def effective_moq(self):
+        """Returns applicable MOQ based on fabric_type."""
+        if self.fabric_type == FabricType.REGULAR:
+            return self.moq_regular
+        elif self.fabric_type == FabricType.NEW:
+            return self.moq_new
+        return None  # Stock has no MOQ
+
+
+class FabricsCatalogueImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    catalogue = models.ForeignKey(
+        FabricsCatalogue,
+        on_delete=models.CASCADE,
+        related_name="images",
+        help_text="Parent catalogue entry",
+    )
+
+    image        = models.ImageField(upload_to="fabrics/images/", help_text="Fabric swatch or detail image")
+    is_thumbnail = models.BooleanField(default=False, help_text="Main swatch display image")
+    sort_order   = models.IntegerField(default=0)
+    uploaded_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "fabrics_catalogue_images"
+        ordering = ["-is_thumbnail", "sort_order", "uploaded_at"]
+        verbose_name = "Fabric Image"
+        verbose_name_plural = "Fabric Images"
+
+    def __str__(self):
+        return f"{'Thumbnail' if self.is_thumbnail else 'Image'} — {self.catalogue.fabric_name}"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one thumbnail per fabric
+        if self.is_thumbnail:
+            FabricsCatalogueImage.objects.filter(
+                catalogue=self.catalogue, is_thumbnail=True
+            ).exclude(pk=self.pk).update(is_thumbnail=False)
+        super().save(*args, **kwargs)
