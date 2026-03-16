@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'accounts',
     'catalogue',
     'corsheaders',
+    'orders',
     'rest_framework',
     'django.contrib.admin',
     'django.contrib.auth',

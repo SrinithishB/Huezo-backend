@@ -148,6 +148,52 @@ All protected routes require: `Authorization: Bearer <access_token>`
 
 ---
 
+### Orders
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/orders/wl/` | ✅ Customer | Place White Label order |
+| POST | `/orders/pl/` | ✅ Customer | Place Private Label order |
+| POST | `/orders/fabrics/` | ✅ Customer | Place Fabrics order |
+| GET | `/orders/` | ✅ Admin = all, Customer = own | List orders |
+| GET | `/orders/<uuid>/` | ✅ | Get order detail + timeline |
+| PATCH | `/orders/<uuid>/status/` | ✅ Admin/Staff | Update order stage |
+
+**Filters for** `GET /orders/`
+```
+?order_type=private_label | white_label | fabrics
+?status=order_placed | cutting | production | packing | payment_pending | payment_done | dispatch | delivered
+?date_from=2026-01-01
+?date_to=2026-03-15
+?search=order number, email
+?ordering=-created_at
+```
+
+**Order number format**
+| Type | Format | Example |
+|---|---|---|
+| White Label | `WL-YYYY-NNNNN` | `WL-2026-00001` |
+| Private Label | `PL-YYYY-NNNNN` | `PL-2026-00001` |
+| Fabrics | `FB-YYYY-NNNNN` | `FB-2026-00001` |
+
+**Order stages by type**
+
+White Label & Fabrics:
+```
+order_placed → cutting → production → packing →
+payment_pending → payment_done → dispatch → delivered
+```
+
+Private Label:
+```
+order_placed → sampling_fabric → sampling_style → sampling_fit →
+sample_approval → sample_rework / sample_approved →
+fabric_procurement → cutting → production →
+packing → dispatch → delivered
+```
+
+---
+
 ## Key Inputs & Outputs
 
 **Register** `POST /auth/register/`
@@ -175,7 +221,7 @@ All protected routes require: `Authorization: Bearer <access_token>`
   "city", "state", "country", "full_address", "created_at" }
 ```
 
-**Catalogue List** `GET /catalogue/wl/`
+**WL Catalogue List** `GET /catalogue/wl/`
 ```json
 // Output
 { "count", "next", "previous",
@@ -184,7 +230,7 @@ All protected routes require: `Authorization: Bearer <access_token>`
                 "fit_sizes", "is_prebooking", "thumbnail_url" }] }
 ```
 
-**Catalogue Detail** `GET /catalogue/wl/<uuid>/`
+**WL Catalogue Detail** `GET /catalogue/wl/<uuid>/`
 ```json
 // Output — same as list item plus:
 { "customization_available", "images": [{ "image_url", "sort_order" }],
@@ -211,9 +257,8 @@ All protected routes require: `Authorization: Bearer <access_token>`
 **Submit Enquiry** `POST /enquiries/`
 ```json
 // Input (multipart/form-data)
-{ "order_type", "full_name", "phone", "email", "brand_name",
-  "message", "source_page",
-  "company_age_years"(opt), "total_pieces_required"(opt),
+{ "order_type", "full_name", "phone", "email", "brand_name", "message",
+  "source_page"(opt), "company_age_years"(opt), "total_pieces_required"(opt),
   "annual_revenue"(opt), "wl_prototype"(opt), "fabric"(opt),
   "images"(opt, multiple files) }
 
@@ -244,4 +289,57 @@ All protected routes require: `Authorization: Bearer <access_token>`
 ```json
 // Output
 { "total", "private_label", "white_label", "fabrics", "others" }
+```
+
+**Place WL Order** `POST /orders/wl/`
+```json
+// Input
+{ "white_label_catalogue": "uuid",
+  "size_breakdown": [{"size":"S","quantity":24},{"size":"M","quantity":24}],
+  "customization_notes"(opt) }
+
+// Output
+{ "message", "data": { order detail } }
+```
+
+**Place PL Order** `POST /orders/pl/`
+```json
+// Input
+{ "style_name", "for_category", "garment_type",
+  "size_breakdown": [{"size":"S","quantity":60}],
+  "pl_fabric_1"(opt uuid), "pl_fabric_2"(opt uuid), "pl_fabric_3"(opt uuid),
+  "notes"(opt) }
+
+// Output
+{ "message", "data": { order detail } }
+```
+
+**Place Fabrics Order** `POST /orders/fabrics/`
+```json
+// Input
+{ "fabric_catalogue": "uuid", "total_quantity": 500, "message": "..." }
+
+// Output
+{ "message", "data": { order detail } }
+```
+
+**Get Order Detail** `GET /orders/<uuid>/`
+```json
+// Output
+{ "id", "order_number", "order_type", "customer", "created_by",
+  "wl_prototype", "fabric", "pl_fabrics",
+  "style_name", "for_category", "garment_type",
+  "fit_sizes", "size_breakdown", "total_quantity", "moq",
+  "customization_notes", "message", "fabric_type",
+  "status", "valid_stages",
+  "notes", "images", "stage_history",
+  "created_at", "updated_at" }
+```
+
+**Update Order Status** `PATCH /orders/<uuid>/status/`
+```json
+// Input (Admin/Staff only)
+{ "status": "cutting", "notes"(opt): "Started cutting today" }
+
+// Output — full order detail with updated stage_history
 ```

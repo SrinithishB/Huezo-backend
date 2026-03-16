@@ -1,0 +1,416 @@
+from rest_framework import serializers
+from .models import Order, OrderStageHistory, OrderImage, OrderType
+
+
+# ── IMAGE ──────────────────────────────────────────────────────────────
+
+class OrderImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = OrderImage
+        fields = ["id", "image_url", "file_name", "uploaded_at"]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return obj.image.url if obj.image else None
+
+
+# ── STAGE HISTORY ──────────────────────────────────────────────────────
+
+class OrderStageHistorySerializer(serializers.ModelSerializer):
+    changed_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = OrderStageHistory
+        fields = ["id", "stage", "changed_by", "notes", "changed_at"]
+
+    def get_changed_by(self, obj):
+        if obj.changed_by:
+            return {"id": str(obj.changed_by.id), "email": obj.changed_by.email}
+        return None
+
+
+# ── CUSTOMER: CREATE WL ORDER ──────────────────────────────────────────
+# Customer is logged in — only needs prototype + sizes + notes
+# Everything else is auto-filled from logged-in user & prototype
+
+class WLOrderCreateSerializer(serializers.Serializer):
+    """
+    White Label order — customer fills only:
+    - white_label_catalogue (which prototype)
+    - size_breakdown        (sizes + quantities)
+    - customization_notes   (optional)
+    - images                (optional)
+    """
+    white_label_catalogue = serializers.UUIDField()
+    size_breakdown        = serializers.CharField(
+        help_text='JSON string: [{"size":"S","quantity":24},{"size":"XXL","quantity":50}]',
+    )
+    customization_notes   = serializers.CharField(required=False, allow_blank=True)
+    images                = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+    )
+
+    def validate_white_label_catalogue(self, value):
+        from catalogue.models import WLPrototype
+        try:
+            return WLPrototype.objects.get(id=value, is_active=True)
+        except WLPrototype.DoesNotExist:
+            raise serializers.ValidationError("WL Prototype not found or inactive.")
+
+    def validate_size_breakdown(self, value):
+        import json
+        # Parse if string (sent as form data)
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError(
+                    'Invalid JSON. Expected: [{"size":"S","quantity":24},{"size":"XXL","quantity":50}]'
+                )
+        for item in value:
+            if "size" not in item or "quantity" not in item:
+                raise serializers.ValidationError(
+                    'Each item must have "size" and "quantity".'
+                )
+            if int(item["quantity"]) <= 0:
+                raise serializers.ValidationError("Quantity must be greater than 0.")
+        return value
+
+    def create(self, validated_data):
+        images_data    = validated_data.pop("images", [])
+        prototype      = validated_data["white_label_catalogue"]
+        size_breakdown = validated_data["size_breakdown"]
+        request        = self.context["request"]
+
+        # Auto-fill from prototype
+        total_quantity = sum(int(i["quantity"]) for i in size_breakdown)
+
+        order = Order.objects.create(
+            order_type            = OrderType.WHITE_LABEL,
+            customer_user         = request.user,
+            created_by_user       = request.user,
+            white_label_catalogue = prototype,
+            for_category          = prototype.for_gender,
+            garment_type          = prototype.garment_type,
+            fit_sizes             = ",".join(i["size"] for i in size_breakdown),
+            size_breakdown        = size_breakdown,
+            total_quantity        = total_quantity,
+            moq                   = prototype.moq,
+            customization_notes   = validated_data.get("customization_notes", ""),
+        )
+
+        for image_file in images_data:
+            OrderImage.objects.create(
+                order     = order,
+                image     = image_file,
+                file_name = image_file.name,
+            )
+
+        OrderStageHistory.objects.create(
+            order      = order,
+            stage      = "order_placed",
+            changed_by = request.user,
+            notes      = "Order placed by customer.",
+        )
+        return order
+
+
+# ── CUSTOMER: CREATE PRIVATE LABEL ORDER ──────────────────────────────
+# Customer fills style name, category, garment type, sizes, quantity
+
+class PLOrderCreateSerializer(serializers.Serializer):
+    """
+    Private Label order — customer fills:
+    - style_name     (their style name)
+    - for_category   (women/men/kids)
+    - garment_type   (kurti/frock etc.)
+    - size_breakdown (sizes + quantities)
+    - pl_fabric_1    (fabric choice 1 — UUID, optional)
+    - pl_fabric_2    (fabric choice 2 — UUID, optional)
+    - pl_fabric_3    (fabric choice 3 — UUID, optional)
+    - images         (optional — design reference)
+    - notes          (optional)
+    """
+    style_name     = serializers.CharField(max_length=200)
+    for_category   = serializers.ChoiceField(choices=["women", "men", "kids"])
+    garment_type   = serializers.CharField(max_length=100)
+    size_breakdown = serializers.CharField(
+        help_text='JSON string: [{"size":"S","quantity":60},{"size":"M","quantity":60}]',
+    )
+    # Up to 3 fabric selections from fabrics catalogue
+    pl_fabric_1 = serializers.UUIDField(required=False, allow_null=True)
+    pl_fabric_2 = serializers.UUIDField(required=False, allow_null=True)
+    pl_fabric_3 = serializers.UUIDField(required=False, allow_null=True)
+
+    notes  = serializers.CharField(required=False, allow_blank=True)
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+    )
+
+    def _get_fabric(self, fabric_id):
+        if not fabric_id:
+            return None
+        from catalogue.models import FabricsCatalogue
+        try:
+            return FabricsCatalogue.objects.get(id=fabric_id, is_active=True)
+        except FabricsCatalogue.DoesNotExist:
+            raise serializers.ValidationError(f"Fabric {fabric_id} not found or inactive.")
+
+    def validate(self, attrs):
+        # Validate fabric UUIDs and replace with instances
+        attrs["pl_fabric_1"] = self._get_fabric(attrs.get("pl_fabric_1"))
+        attrs["pl_fabric_2"] = self._get_fabric(attrs.get("pl_fabric_2"))
+        attrs["pl_fabric_3"] = self._get_fabric(attrs.get("pl_fabric_3"))
+        return attrs
+
+    def validate_size_breakdown(self, value):
+        import json
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError(
+                    'Invalid JSON. Expected: [{"size":"S","quantity":60}]'
+                )
+        for item in value:
+            if "size" not in item or "quantity" not in item:
+                raise serializers.ValidationError(
+                    'Each item must have "size" and "quantity".'
+                )
+            if int(item["quantity"]) <= 0:
+                raise serializers.ValidationError("Quantity must be greater than 0.")
+        return value
+
+    def create(self, validated_data):
+        images_data    = validated_data.pop("images", [])
+        size_breakdown = validated_data["size_breakdown"]
+        request        = self.context["request"]
+
+        total_quantity = sum(int(i["quantity"]) for i in size_breakdown)
+
+        order = Order.objects.create(
+            order_type      = OrderType.PRIVATE_LABEL,
+            customer_user   = request.user,
+            created_by_user = request.user,
+            style_name      = validated_data["style_name"],
+            for_category    = validated_data["for_category"],
+            garment_type    = validated_data["garment_type"],
+            fit_sizes       = ",".join(i["size"] for i in size_breakdown),
+            size_breakdown  = size_breakdown,
+            total_quantity  = total_quantity,
+            moq             = 60,
+            pl_fabric_1     = validated_data.get("pl_fabric_1"),
+            pl_fabric_2     = validated_data.get("pl_fabric_2"),
+            pl_fabric_3     = validated_data.get("pl_fabric_3"),
+            notes           = validated_data.get("notes", ""),
+        )
+
+        for image_file in images_data:
+            OrderImage.objects.create(
+                order     = order,
+                image     = image_file,
+                file_name = image_file.name,
+            )
+
+        OrderStageHistory.objects.create(
+            order      = order,
+            stage      = "order_placed",
+            changed_by = request.user,
+            notes      = "Order placed by customer.",
+        )
+        return order
+
+
+# ── CUSTOMER: CREATE FABRICS ORDER ────────────────────────────────────
+
+class FabricsOrderCreateSerializer(serializers.Serializer):
+    """
+    Fabrics order — customer fills:
+    - fabric_catalogue  (which fabric)
+    - total_quantity    (meters required)
+    - message           (mandatory)
+    - images            (optional)
+    """
+    fabric_catalogue = serializers.UUIDField()
+    total_quantity   = serializers.IntegerField(min_value=1)
+    message          = serializers.CharField()
+    images           = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+    )
+
+    def validate_fabric_catalogue(self, value):
+        from catalogue.models import FabricsCatalogue
+        try:
+            return FabricsCatalogue.objects.get(id=value, is_active=True)
+        except FabricsCatalogue.DoesNotExist:
+            raise serializers.ValidationError("Fabric not found or inactive.")
+
+    def create(self, validated_data):
+        images_data = validated_data.pop("images", [])
+        fabric      = validated_data["fabric_catalogue"]
+        request     = self.context["request"]
+
+        order = Order.objects.create(
+            order_type       = OrderType.FABRICS,
+            customer_user    = request.user,
+            created_by_user  = request.user,
+            fabric_catalogue = fabric,
+            fabric_type      = fabric.fabric_type,
+            total_quantity   = validated_data["total_quantity"],
+            moq              = fabric.effective_moq,
+            message          = validated_data["message"],
+        )
+
+        for image_file in images_data:
+            OrderImage.objects.create(
+                order     = order,
+                image     = image_file,
+                file_name = image_file.name,
+            )
+
+        OrderStageHistory.objects.create(
+            order      = order,
+            stage      = "order_placed",
+            changed_by = request.user,
+            notes      = "Order placed by customer.",
+        )
+        return order
+
+
+# ── LIST ORDER ─────────────────────────────────────────────────────────
+
+class OrderListSerializer(serializers.ModelSerializer):
+    customer     = serializers.SerializerMethodField()
+    wl_prototype = serializers.SerializerMethodField()
+    fabric       = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = Order
+        fields = [
+            "id", "order_number", "order_type",
+            "customer", "wl_prototype", "fabric",
+            "style_name", "for_category", "garment_type",
+            "total_quantity", "status", "created_at",
+        ]
+
+    def get_customer(self, obj):
+        return {"id": str(obj.customer_user.id), "email": obj.customer_user.email}
+
+    def get_wl_prototype(self, obj):
+        if obj.white_label_catalogue:
+            return {
+                "id":             str(obj.white_label_catalogue.id),
+                "prototype_code": obj.white_label_catalogue.prototype_code,
+            }
+        return None
+
+    def get_fabric(self, obj):
+        if obj.fabric_catalogue:
+            return {
+                "id":          str(obj.fabric_catalogue.id),
+                "fabric_name": obj.fabric_catalogue.fabric_name,
+            }
+        return None
+
+
+# ── DETAIL ORDER ───────────────────────────────────────────────────────
+
+class OrderDetailSerializer(serializers.ModelSerializer):
+    customer      = serializers.SerializerMethodField()
+    created_by    = serializers.SerializerMethodField()
+    wl_prototype  = serializers.SerializerMethodField()
+    fabric        = serializers.SerializerMethodField()
+    enquiry       = serializers.SerializerMethodField()
+    images        = OrderImageSerializer(many=True, read_only=True)
+    stage_history = OrderStageHistorySerializer(many=True, read_only=True)
+    valid_stages  = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = Order
+        fields = [
+            "id", "order_number", "order_type",
+            "customer", "created_by", "enquiry",
+            "wl_prototype", "fabric",
+            "style_name", "for_category", "garment_type",
+            "fit_sizes", "size_breakdown",
+            "total_quantity", "moq",
+            "customization_notes", "message", "fabric_type",
+            "status", "valid_stages",
+            "notes", "images", "stage_history",
+            "created_at", "updated_at",
+        ]
+
+    def get_customer(self, obj):
+        return {"id": str(obj.customer_user.id), "email": obj.customer_user.email}
+
+    def get_created_by(self, obj):
+        return {"id": str(obj.created_by_user.id), "email": obj.created_by_user.email}
+
+    def get_enquiry(self, obj):
+        if obj.enquiry:
+            return {"id": str(obj.enquiry.id), "enquiry_number": obj.enquiry.enquiry_number}
+        return None
+
+    def get_wl_prototype(self, obj):
+        if obj.white_label_catalogue:
+            return {
+                "id":             str(obj.white_label_catalogue.id),
+                "prototype_code": obj.white_label_catalogue.prototype_code,
+                "garment_type":   obj.white_label_catalogue.garment_type,
+                "for_gender":     obj.white_label_catalogue.for_gender,
+                "moq":            obj.white_label_catalogue.moq,
+            }
+        return None
+
+    def get_fabric(self, obj):
+        if obj.fabric_catalogue:
+            return {
+                "id":           str(obj.fabric_catalogue.id),
+                "fabric_name":  obj.fabric_catalogue.fabric_name,
+                "fabric_type":  obj.fabric_catalogue.fabric_type,
+                "effective_moq": obj.fabric_catalogue.effective_moq,
+            }
+        return None
+
+    def get_pl_fabrics(self, obj):
+        fabrics = []
+        for i, fabric in enumerate([obj.pl_fabric_1, obj.pl_fabric_2, obj.pl_fabric_3], start=1):
+            if fabric:
+                fabrics.append({
+                    "choice":      i,
+                    "id":          str(fabric.id),
+                    "fabric_name": fabric.fabric_name,
+                    "fabric_type": fabric.fabric_type,
+                    "composition": fabric.composition,
+                    "width_cm":    str(fabric.width_cm) if fabric.width_cm else None,
+                })
+        return fabrics
+
+    def get_valid_stages(self, obj):
+        return [{"value": s[0], "label": s[1]} for s in obj.valid_stages]
+
+
+# ── ADMIN: UPDATE ORDER STATUS ─────────────────────────────────────────
+
+class OrderStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    notes  = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_status(self, value):
+        order = self.context["order"]
+        valid = [s[0] for s in order.valid_stages]
+        if value not in valid:
+            raise serializers.ValidationError(
+                f"Invalid status for {order.order_type}. Valid: {valid}"
+            )
+        return value
