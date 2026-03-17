@@ -39,7 +39,36 @@ django-cors-headers
 bcrypt
 psycopg2-binary
 Pillow
+razorpay
+python-decouple
 ```
+
+---
+
+## Environment Variables
+
+Create a `.env` file in the project root (same folder as `manage.py`):
+
+```
+SECRET_KEY=your_django_secret_key
+DEBUG=True
+
+RAZORPAY_KEY_ID=rzp_test_xxxx
+RAZORPAY_KEY_SECRET=your_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+```
+
+---
+
+## Apps
+
+| App | Description |
+|---|---|
+| `accounts` | Users, customer profiles, auth |
+| `catalogue` | WL prototypes, fabrics catalogue |
+| `enquiries` | Public enquiry forms |
+| `orders` | Order placement and tracking |
+| `payments` | Razorpay payment integration |
 
 ---
 
@@ -176,20 +205,49 @@ All protected routes require: `Authorization: Bearer <access_token>`
 | Private Label | `PL-YYYY-NNNNN` | `PL-2026-00001` |
 | Fabrics | `FB-YYYY-NNNNN` | `FB-2026-00001` |
 
-**Order stages by type**
+**Order stages**
 
-White Label & Fabrics:
+All types (WL, PL, Fabrics):
 ```
-order_placed → cutting → production → packing →
-payment_pending → payment_done → dispatch → delivered
+order_placed → ... → packing → payment_pending → payment_done → dispatch → delivered
 ```
 
-Private Label:
+Private Label (additional sampling stages):
 ```
 order_placed → sampling_fabric → sampling_style → sampling_fit →
 sample_approval → sample_rework / sample_approved →
 fabric_procurement → cutting → production →
-packing → dispatch → delivered
+packing → payment_pending → payment_done → dispatch → delivered
+```
+
+---
+
+### Payments
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/payments/orders/<uuid>/create/` | ✅ Admin/Staff | Create Razorpay payment |
+| GET | `/payments/orders/<uuid>/status/` | ✅ Any | Check payment status |
+| GET | `/payments/transactions/` | ✅ Admin/Staff | List all transactions |
+| POST | `/payments/webhook/` | ❌ | Razorpay webhook (auto-called) |
+
+**Razorpay webhook events handled:**
+```
+payment.captured  → status = payment_done, transaction = paid
+payment.failed    → transaction = failed
+order.paid        → acknowledged
+refund.created    → transaction = refunded
+refund.processed  → stage history note added
+```
+
+**Admin panel payment flow:**
+```
+1. Open order in admin panel
+2. Set Payment Amount field  e.g. 5000.00
+3. Change Status → payment_pending
+4. Save → Razorpay payment auto-created
+5. Customer pays via Flutter app
+6. Webhook auto-updates → payment_done
 ```
 
 ---
@@ -214,46 +272,6 @@ packing → dispatch → delivered
 { "message", "user": { "id", "email", "role" }, "access", "refresh" }
 ```
 
-**My Profile** `GET /customers/me/`
-```json
-// Output
-{ "id", "email", "brand_name", "contact_name", "phone",
-  "city", "state", "country", "full_address", "created_at" }
-```
-
-**WL Catalogue List** `GET /catalogue/wl/`
-```json
-// Output
-{ "count", "next", "previous",
-  "results": [{ "id", "prototype_code", "garment_type",
-                "collection_name", "for_gender", "moq",
-                "fit_sizes", "is_prebooking", "thumbnail_url" }] }
-```
-
-**WL Catalogue Detail** `GET /catalogue/wl/<uuid>/`
-```json
-// Output — same as list item plus:
-{ "customization_available", "images": [{ "image_url", "sort_order" }],
-  "created_by_admin", "updated_at" }
-```
-
-**Fabrics List** `GET /catalogue/fabrics/`
-```json
-// Output
-{ "count", "next", "previous",
-  "results": [{ "id", "fabric_type", "fabric_name", "composition",
-                "width_cm", "price_per_meter", "stock_available_meters",
-                "effective_moq", "thumbnail_url", "is_active" }] }
-```
-
-**Fabrics Detail** `GET /catalogue/fabrics/<uuid>/`
-```json
-// Output — same as list item plus:
-{ "description", "moq_regular", "moq_new", "colour_options",
-  "images": [{ "image_url", "is_thumbnail", "sort_order" }],
-  "created_by", "created_at", "updated_at" }
-```
-
 **Submit Enquiry** `POST /enquiries/`
 ```json
 // Input (multipart/form-data)
@@ -268,50 +286,27 @@ packing → dispatch → delivered
   "wl_prototype", "fabric", "images", "created_at" } }
 ```
 
-**List Enquiries** `GET /enquiries/admin/`
-```json
-// Output
-{ "count", "next", "previous",
-  "results": [{ "id", "enquiry_number", "order_type", "full_name",
-                "phone", "email", "brand_name", "total_pieces_required",
-                "status", "is_viewed", "assigned_to", "created_at" }] }
-```
-
-**Update Enquiry** `PATCH /enquiries/admin/<uuid>/`
-```json
-// Input
-{ "status"(opt), "assigned_to_user"(opt), "admin_notes"(opt) }
-
-// Output — full enquiry detail
-```
-
-**Unread Count** `GET /enquiries/admin/unread-count/`
-```json
-// Output
-{ "total", "private_label", "white_label", "fabrics", "others" }
-```
-
 **Place WL Order** `POST /orders/wl/`
 ```json
 // Input
 { "white_label_catalogue": "uuid",
-  "size_breakdown": [{"size":"S","quantity":24},{"size":"M","quantity":24}],
+  "size_breakdown": "[{\"size\":\"S\",\"quantity\":24}]",
   "customization_notes"(opt) }
 
 // Output
-{ "message", "data": { order detail } }
+{ "message", "data": { full order detail } }
 ```
 
 **Place PL Order** `POST /orders/pl/`
 ```json
 // Input
 { "style_name", "for_category", "garment_type",
-  "size_breakdown": [{"size":"S","quantity":60}],
+  "size_breakdown": "[{\"size\":\"S\",\"quantity\":60}]",
   "pl_fabric_1"(opt uuid), "pl_fabric_2"(opt uuid), "pl_fabric_3"(opt uuid),
   "notes"(opt) }
 
 // Output
-{ "message", "data": { order detail } }
+{ "message", "data": { full order detail } }
 ```
 
 **Place Fabrics Order** `POST /orders/fabrics/`
@@ -320,19 +315,20 @@ packing → dispatch → delivered
 { "fabric_catalogue": "uuid", "total_quantity": 500, "message": "..." }
 
 // Output
-{ "message", "data": { order detail } }
+{ "message", "data": { full order detail } }
 ```
 
 **Get Order Detail** `GET /orders/<uuid>/`
 ```json
 // Output
-{ "id", "order_number", "order_type", "customer", "created_by",
+{ "id", "order_number", "order_type",
+  "customer", "created_by", "enquiry",
   "wl_prototype", "fabric", "pl_fabrics",
   "style_name", "for_category", "garment_type",
   "fit_sizes", "size_breakdown", "total_quantity", "moq",
   "customization_notes", "message", "fabric_type",
-  "status", "valid_stages",
-  "notes", "images", "stage_history",
+  "status", "valid_stages", "notes",
+  "images", "stage_history",
   "created_at", "updated_at" }
 ```
 
@@ -342,4 +338,23 @@ packing → dispatch → delivered
 { "status": "cutting", "notes"(opt): "Started cutting today" }
 
 // Output — full order detail with updated stage_history
+```
+
+**Create Payment** `POST /payments/orders/<uuid>/create/`
+```json
+// Input (Admin/Staff only)
+{ "amount": 5000.00, "notes"(opt): "Payment for WL-2026-00001" }
+
+// Output
+{ "transaction_id", "razorpay_order_id", "amount_paise",
+  "amount_inr", "currency", "key_id" }
+```
+
+**Payment Status** `GET /payments/orders/<uuid>/status/`
+```json
+// Output
+{ "order_number", "order_status",
+  "payment_type", "amount", "currency",
+  "status", "razorpay_order_id",
+  "payment_reference", "paid_at" }
 ```

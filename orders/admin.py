@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.contrib import messages
+from django.utils.safestring import mark_safe
 from .models import Order, OrderStageHistory, OrderImage
 
 
@@ -35,20 +37,12 @@ class OrderAdmin(admin.ModelAdmin):
     list_display  = [
         "order_number", "order_type", "customer_user",
         "status", "total_quantity", "for_category",
-        "garment_type", "created_at",
+        "garment_type", "payment_status_display", "created_at",
     ]
     list_filter   = ["order_type", "status", "for_category", "fabric_type"]
     search_fields = ["order_number", "customer_user__email", "style_name"]
     ordering      = ["-created_at"]
     inlines       = [OrderStageHistoryInline, OrderImageInline]
-
-    # ------------------------------------------------------------------ #
-    # Admin can only:
-    # 1. View all order details (read-only)
-    # 2. Update status + notes
-    # 3. Link enquiry (traceability)
-    # Everything else was auto-filled when order was created
-    # ------------------------------------------------------------------ #
 
     readonly_fields = [
         # Auto-filled at creation — never editable
@@ -59,8 +53,9 @@ class OrderAdmin(admin.ModelAdmin):
         "for_category", "garment_type", "fabric_type",
         "fit_sizes", "size_breakdown",
         "total_quantity", "moq",
-        "style_name",
-        "message",
+        "style_name", "message",
+        # Payment — read only display
+        "payment_info",
         "created_at", "updated_at",
     ]
 
@@ -74,7 +69,6 @@ class OrderAdmin(admin.ModelAdmin):
         }),
         ("Catalogue Reference", {
             "fields": ("white_label_catalogue", "fabric_catalogue"),
-            "description": "Auto-filled from the catalogue item the customer selected.",
         }),
         ("Order Details", {
             "fields": (
@@ -82,24 +76,29 @@ class OrderAdmin(admin.ModelAdmin):
                 "fabric_type", "fit_sizes", "size_breakdown",
                 "total_quantity", "moq",
             ),
-            "description": "Auto-filled at the time of order placement.",
+            "description": "Auto-filled at order placement.",
         }),
         ("Selected Fabrics (Private Label)", {
             "fields": ("pl_fabric_1", "pl_fabric_2", "pl_fabric_3"),
-            "description": "Up to 3 fabrics selected by the customer for their Private Label order.",
         }),
         ("Customer Notes", {
             "fields": ("customization_notes", "message"),
-            "description": "Entered by customer — customization_notes (WL) | message (Fabrics).",
         }),
-        # ── Admin editable fields ──────────────────────────────────────
+        # ── Admin editable ─────────────────────────────────────────── #
         ("Status", {
             "fields": ("status",),
             "description": "Update order stage here. Stage history is tracked automatically.",
         }),
+        ("Payment", {
+            "fields": ("payment_amount", "payment_info"),
+            "description": (
+                "Set the payment amount and save. "
+                "When status is set to payment_pending, "
+                "a Razorpay payment link will be auto-created for the customer."
+            ),
+        }),
         ("Traceability", {
             "fields": ("enquiry",),
-            "description": "Link to the original enquiry that led to this order.",
         }),
         ("Admin Notes", {
             "fields": ("notes",),
@@ -109,10 +108,75 @@ class OrderAdmin(admin.ModelAdmin):
         }),
     )
 
+    # ── Custom display fields ──────────────────────────────────────── #
+
+    def payment_status_display(self, obj):
+        from payments.models import PaymentTransaction, PaymentStatus
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(obj)
+        tx = PaymentTransaction.objects.filter(
+            content_type=ct, object_id=obj.id
+        ).order_by("-created_at").first()
+
+        if not tx:
+            return mark_safe('<span style="color:#999;">—</span>')
+
+        colors = {
+            "pending":  "#f0a500",
+            "paid":     "#27ae60",
+            "failed":   "#e74c3c",
+            "refunded": "#8e44ad",
+        }
+        color = colors.get(tx.status, "#999")
+        return format_html(
+            '<span style="color:{};font-weight:600;">{}</span>',
+            color, tx.get_status_display()
+        )
+    payment_status_display.short_description = "Payment"
+
+    def payment_info(self, obj):
+        from payments.models import PaymentTransaction
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(obj)
+        tx = PaymentTransaction.objects.filter(
+            content_type=ct, object_id=obj.id
+        ).order_by("-created_at").first()
+
+        if not tx:
+            return mark_safe('<span style="color:#999;">No payment created yet.</span>')
+
+        color_map = {
+            "pending":  "#f0a500",
+            "paid":     "#27ae60",
+            "failed":   "#e74c3c",
+            "refunded": "#8e44ad",
+        }
+        color = color_map.get(tx.status, "#999")
+
+        html = f"""
+        <table style="border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:3px 10px 3px 0;color:#666;">Status</td>
+              <td style="color:{color};font-weight:600;">{tx.get_status_display()}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;color:#666;">Amount</td>
+              <td>₹{tx.amount} {tx.currency}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;color:#666;">Razorpay Order ID</td>
+              <td>{tx.razorpay_order_id or '—'}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;color:#666;">Payment Reference</td>
+              <td>{tx.payment_reference or '—'}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;color:#666;">Paid At</td>
+              <td>{tx.paid_at.strftime('%d %b %Y %H:%M') if tx.paid_at else '—'}</td></tr>
+        </table>
+        """
+        return mark_safe(html)
+    payment_info.short_description = "Payment Details"
+
+    # ── Save logic ─────────────────────────────────────────────────── #
+
     def save_model(self, request, obj, form, change):
         if change:
-            # Track status change in history when admin updates from admin panel
             old = Order.objects.get(pk=obj.pk)
+
+            # Track status change
             if old.status != obj.status:
                 OrderStageHistory.objects.create(
                     order      = obj,
@@ -120,10 +184,52 @@ class OrderAdmin(admin.ModelAdmin):
                     changed_by = request.user,
                     notes      = "Updated via admin panel.",
                 )
+
+            # Auto-create Razorpay payment when status → payment_pending
+            # and payment_amount is set
+            if (
+                old.status != "payment_pending"
+                and obj.status == "payment_pending"
+                and obj.payment_amount
+            ):
+                self._create_razorpay_payment(request, obj)
+
         super().save_model(request, obj, form, change)
 
+    def _create_razorpay_payment(self, request, order):
+        """Auto-create Razorpay payment when admin sets payment_pending."""
+        try:
+            from payments import gateway
+            from payments.models import PaymentTransaction, PaymentStatus
+            from django.contrib.contenttypes.models import ContentType
+
+            ct = ContentType.objects.get_for_model(order)
+
+            # Don't create duplicate
+            if PaymentTransaction.objects.filter(
+                content_type=ct,
+                object_id=order.id,
+                status=PaymentStatus.PENDING,
+            ).exists():
+                messages.warning(request, "A pending payment already exists for this order.")
+                return
+
+            result = gateway.create_payment(
+                content_object = order,
+                amount         = order.payment_amount,
+                payment_type   = "order",
+                paid_by        = order.customer_user,
+                notes          = f"Payment for {order.order_number}",
+            )
+            messages.success(
+                request,
+                f"✅ Razorpay payment created. Order ID: {result['razorpay_order_id']} "
+                f"| Amount: ₹{order.payment_amount}"
+            )
+        except Exception as e:
+            messages.error(request, f"❌ Failed to create Razorpay payment: {str(e)}")
+
     def has_add_permission(self, request):
-        # Orders are created by customers via API — not manually in admin
         return False
 
 
@@ -139,7 +245,6 @@ class OrderStageHistoryAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
-        # Timeline is immutable — no editing
         return False
 
 
