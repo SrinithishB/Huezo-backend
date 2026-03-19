@@ -1,6 +1,34 @@
 # Huezo Backend
 
-Django REST API for the Huezo White Label Catalogue platform.
+Django REST API for the Huezo B2B fashion manufacturing platform — White Label, Private Label, and Fabrics ordering with Razorpay payment integration.
+
+---
+
+## Project Structure
+
+```
+backend/
+├── frontend/                  # HTML/CSS/JS customer portal
+│   ├── _base.css              # Shared styles
+│   ├── _base.js               # Auth, API, UI helpers
+│   ├── login.html             # Login page
+│   ├── catalogue.html         # WL Catalogue + order placement
+│   ├── fabrics.html           # Fabrics Catalogue + order placement
+│   ├── private-label.html     # Private Label order form
+│   ├── orders.html            # My Orders list
+│   ├── order-detail.html      # Order detail + timeline + payment
+│   ├── profile.html           # Account & brand profile
+│   └── enquiry.html           # Public enquiry form (no login)
+│
+└── huezo_backend/             # Django project
+    ├── accounts/              # Users, roles, customer profiles, auth
+    ├── catalogue/             # WL prototypes + fabrics catalogue
+    ├── enquiries/             # Public enquiry submissions
+    ├── orders/                # Order placement, stages, history
+    ├── payments/              # Razorpay integration
+    ├── dashboard/             # Admin stats (WIP)
+    └── huezo_backend/         # Django settings, urls, wsgi
+```
 
 ---
 
@@ -9,70 +37,100 @@ Django REST API for the Huezo White Label Catalogue platform.
 ```bash
 # Clone
 git clone https://github.com/SrinithishB/huezo_backend.git
+cd huezo_backend/backend
 
 # Virtual environment
 python -m venv venv
 venv\Scripts\activate        # Windows
 source venv/bin/activate     # Mac/Linux
 
-# Enter
+# Install dependencies
+pip install -r huezo_backend/requirements.txt
+
+# Create .env file (see Environment Variables section)
+
+# Run migrations
 cd huezo_backend
-
-# Install
-pip install -r requirements.txt
-
-# Migrate & create admin
 python manage.py migrate
+
+# Create admin user
 python manage.py createsuperuser
 
-# Run
+# Start server
 python manage.py runserver
-```
-
-**requirements.txt**
-```
-django
-djangorestframework
-djangorestframework-simplejwt
-django-filter
-django-cors-headers
-bcrypt
-psycopg2-binary
-Pillow
-razorpay
-python-decouple
 ```
 
 ---
 
 ## Environment Variables
 
-Create a `.env` file in the project root (same folder as `manage.py`):
+Create a `.env` file inside `huezo_backend/` (same folder as `manage.py`):
 
-```
-SECRET_KEY=your_django_secret_key
-DEBUG=True
-
-RAZORPAY_KEY_ID=rzp_test_xxxx
-RAZORPAY_KEY_SECRET=your_secret
+```env
+RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxx
+RAZORPAY_KEY_SECRET=your_razorpay_secret
 RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
 ```
 
 ---
 
-## Apps
+## Dependencies
 
-| App | Description |
-|---|---|
-| `accounts` | Users, customer profiles, auth |
-| `catalogue` | WL prototypes, fabrics catalogue |
-| `enquiries` | Public enquiry forms |
-| `orders` | Order placement and tracking |
-| `payments` | Razorpay payment integration |
+```
+Django==6.0.3
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
+django-filter==25.2
+django-cors-headers==4.9.0
+django-environ
+bcrypt==5.0.0
+Pillow==12.1.1
+razorpay
+psycopg2-binary==2.9.11
+openpyxl
+```
 
 ---
 
-## Endpoints
+## Apps & Responsibilities
+
+| App | Description |
+|---|---|
+| `accounts` | Custom User model (UUID PK, email login), 3 roles: admin / staff / customer. Customer brand profile. Brute-force lockout (5 attempts → 30 min lock). JWT auth. |
+| `catalogue` | WL Prototypes (garment designs with sizes, images, pre-booking). Fabrics Catalogue (regular / new / stock types with MOQ logic). |
+| `enquiries` | Public enquiry form — no login required. Status tracking (new → accepted / rejected). Assignable to staff. Linkable to WL prototype or fabric. |
+| `orders` | 3 order types: White Label, Private Label, Fabrics. Each has its own status pipeline. Auto-generates order numbers. Stage history timeline. |
+| `payments` | Razorpay payment transactions. Generic FK — works for orders and any future payment type. Webhook handler for captured / failed / refunded events. |
+| `dashboard` | Admin stats and reporting (WIP). |
+
+---
+
+## User Roles
+
+| Role | Django Admin | API Access |
+|---|---|---|
+| `admin` | ✅ Full access | All endpoints |
+| `staff` | ❌ | All read + update endpoints |
+| `customer` | ❌ | Own orders, own profile, catalogue |
+
+---
+
+## Frontend Pages
+
+| Page | Auth Required | Description |
+|---|---|---|
+| `login.html` | ❌ | Email + password login |
+| `enquiry.html` | ❌ | Public enquiry form (4 types) |
+| `catalogue.html` | ✅ | Browse WL prototypes, place WL orders |
+| `fabrics.html` | ✅ | Browse fabrics catalogue, place fabric orders |
+| `private-label.html` | ✅ | Place private label orders with fabric selection |
+| `orders.html` | ✅ | View all orders with filters |
+| `order-detail.html` | ✅ | Order detail, stage timeline, Razorpay payment |
+| `profile.html` | ✅ | View/edit account and brand profile |
+
+---
+
+## API Reference
 
 Base URL: `http://127.0.0.1:8000/api`
 
@@ -84,13 +142,13 @@ All protected routes require: `Authorization: Bearer <access_token>`
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/auth/register/` | ❌ | Register new customer |
-| POST | `/auth/login/` | ❌ | Login, returns tokens |
-| POST | `/auth/logout/` | ✅ | Invalidate refresh token |
+| POST | `/auth/register/` | ❌ | Register new customer + profile |
+| POST | `/auth/login/` | ❌ | Login, returns JWT tokens |
+| POST | `/auth/logout/` | ✅ | Blacklist refresh token |
 | POST | `/auth/token/refresh/` | ❌ | Get new access token |
-| POST | `/auth/change-password/` | ✅ | Change password |
-| GET | `/auth/me/` | ✅ | View my account |
-| PATCH | `/auth/me/` | ✅ | Update my account |
+| POST | `/auth/change-password/` | ✅ | Change own password |
+| GET | `/auth/me/` | ✅ | View own account |
+| PATCH | `/auth/me/` | ✅ | Update own email |
 
 ---
 
@@ -98,8 +156,8 @@ All protected routes require: `Authorization: Bearer <access_token>`
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/customers/me/` | ✅ | View my profile |
-| PATCH | `/customers/me/` | ✅ | Update my profile |
+| GET | `/customers/me/` | ✅ | View own brand profile |
+| PATCH | `/customers/me/` | ✅ | Update own brand profile |
 
 ---
 
@@ -107,16 +165,14 @@ All protected routes require: `Authorization: Bearer <access_token>`
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/catalogue/wl/` | ✅ | List all prototypes |
-| GET | `/catalogue/wl/<uuid>/` | ✅ | Get prototype detail |
+| GET | `/catalogue/wl/` | ✅ | List prototypes |
+| GET | `/catalogue/wl/<uuid>/` | ✅ | Prototype detail + images |
 
-**Filters for** `GET /catalogue/wl/`
+**Filters:**
 ```
-?for_gender=women
+?for_gender=women | men | kids
 ?garment_type=kurti
-?collection_name=diwali
 ?is_prebooking=true
-?moq_min=10&moq_max=50
 ?search=WL-2025
 ?ordering=-created_at
 ?page=2
@@ -128,22 +184,18 @@ All protected routes require: `Authorization: Bearer <access_token>`
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/catalogue/fabrics/` | ✅ | List all fabrics |
-| GET | `/catalogue/fabrics/<uuid>/` | ✅ | Get fabric detail |
+| GET | `/catalogue/fabrics/` | ✅ | List fabrics |
+| GET | `/catalogue/fabrics/<uuid>/` | ✅ | Fabric detail + images |
 
-**Filters for** `GET /catalogue/fabrics/`
+**Filters:**
 ```
 ?fabric_type=regular | new | stock
-?fabric_name=cotton
-?composition=poly
-?price_min=10&price_max=500
-?width_min=100&width_max=200
-?search=silk
-?ordering=-price_per_meter
+?search=cotton
+?ordering=-created_at
 ?page=2
 ```
 
-**MOQ by fabric type**
+**MOQ by type:**
 | Type | MOQ |
 |---|---|
 | `regular` | 400m |
@@ -156,22 +208,26 @@ All protected routes require: `Authorization: Bearer <access_token>`
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/enquiries/` | ❌ | Submit enquiry (public) |
+| POST | `/enquiries/` | ❌ | Submit enquiry (multipart/form-data) |
 | GET | `/enquiries/admin/` | ✅ Admin/Staff | List all enquiries |
 | GET | `/enquiries/admin/unread-count/` | ✅ Admin/Staff | Unread counts by type |
-| GET | `/enquiries/admin/<uuid>/` | ✅ Admin/Staff | Get enquiry detail |
+| GET | `/enquiries/admin/<uuid>/` | ✅ Admin/Staff | Enquiry detail (auto-marks viewed) |
 | PATCH | `/enquiries/admin/<uuid>/` | ✅ Admin/Staff | Update status / assignee / notes |
 
-**Filters for** `GET /enquiries/admin/`
+**Enquiry types:** `white_label` | `private_label` | `fabrics` | `others`
+
+**Enquiry statuses:** `new` → `contacted` → `waiting_response` → `prospect` → `accepted` / `rejected` / `closed`
+
+**Filters for** `GET /enquiries/admin/`:
 ```
-?order_type=private_label | white_label | fabrics | others
+?order_type=white_label | private_label | fabrics | others
 ?status=new | contacted | waiting_response | prospect | accepted | rejected | closed
 ?is_viewed=true | false
-?source_page=general | private_label_page | white_label_page | fabrics_page
+?source_page=general | white_label_page | private_label_page | fabrics_page
 ?assigned_to_user=<uuid>
 ?date_from=2026-01-01
 ?date_to=2026-03-15
-?search=name, email, phone, brand, enquiry number
+?search=<name, email, phone, brand, enquiry number>
 ?ordering=-created_at
 ```
 
@@ -184,40 +240,45 @@ All protected routes require: `Authorization: Bearer <access_token>`
 | POST | `/orders/wl/` | ✅ Customer | Place White Label order |
 | POST | `/orders/pl/` | ✅ Customer | Place Private Label order |
 | POST | `/orders/fabrics/` | ✅ Customer | Place Fabrics order |
-| GET | `/orders/` | ✅ Admin = all, Customer = own | List orders |
-| GET | `/orders/<uuid>/` | ✅ | Get order detail + timeline |
+| GET | `/orders/` | ✅ | List orders (admin = all, customer = own) |
+| GET | `/orders/<uuid>/` | ✅ | Order detail + timeline + payment info |
 | PATCH | `/orders/<uuid>/status/` | ✅ Admin/Staff | Update order stage |
 
-**Filters for** `GET /orders/`
+**Filters for** `GET /orders/`:
 ```
-?order_type=private_label | white_label | fabrics
+?order_type=white_label | private_label | fabrics
 ?status=order_placed | cutting | production | packing | payment_pending | payment_done | dispatch | delivered
 ?date_from=2026-01-01
 ?date_to=2026-03-15
-?search=order number, email
+?search=<order number, email>
 ?ordering=-created_at
 ```
 
-**Order number format**
+**Order number format:**
 | Type | Format | Example |
 |---|---|---|
 | White Label | `WL-YYYY-NNNNN` | `WL-2026-00001` |
 | Private Label | `PL-YYYY-NNNNN` | `PL-2026-00001` |
 | Fabrics | `FB-YYYY-NNNNN` | `FB-2026-00001` |
 
-**Order stages**
+**Order stages by type:**
 
-All types (WL, PL, Fabrics):
+White Label:
 ```
-order_placed → ... → packing → payment_pending → payment_done → dispatch → delivered
+order_placed → cutting → production → packing → payment_pending → payment_done → dispatch → delivered
 ```
 
-Private Label (additional sampling stages):
+Private Label:
 ```
 order_placed → sampling_fabric → sampling_style → sampling_fit →
-sample_approval → sample_rework / sample_approved →
+sample_approval → sample_rework | sample_approved →
 fabric_procurement → cutting → production →
 packing → payment_pending → payment_done → dispatch → delivered
+```
+
+Fabrics:
+```
+order_placed → production → procurement → cutting → packing → payment_pending → payment_done → dispatch → delivered
 ```
 
 ---
@@ -226,14 +287,14 @@ packing → payment_pending → payment_done → dispatch → delivered
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/payments/orders/<uuid>/create/` | ✅ Admin/Staff | Create Razorpay payment |
-| GET | `/payments/orders/<uuid>/status/` | ✅ Any | Check payment status |
+| POST | `/payments/orders/<uuid>/create/` | ✅ Admin/Staff | Create Razorpay order for payment |
+| GET | `/payments/orders/<uuid>/status/` | ✅ | Check payment status |
 | GET | `/payments/transactions/` | ✅ Admin/Staff | List all transactions |
-| POST | `/payments/webhook/` | ❌ | Razorpay webhook (auto-called) |
+| POST | `/payments/webhook/` | ❌ | Razorpay webhook receiver |
 
-**Razorpay webhook events handled:**
+**Webhook events handled:**
 ```
-payment.captured  → status = payment_done, transaction = paid
+payment.captured  → transaction = paid, order status → payment_done
 payment.failed    → transaction = failed
 order.paid        → acknowledged
 refund.created    → transaction = refunded
@@ -242,119 +303,100 @@ refund.processed  → stage history note added
 
 **Admin panel payment flow:**
 ```
-1. Open order in admin panel
-2. Set Payment Amount field  e.g. 5000.00
-3. Change Status → payment_pending
-4. Save → Razorpay payment auto-created
-5. Customer pays via Flutter app
-6. Webhook auto-updates → payment_done
+1. Open order in Django admin
+2. Set Payment Amount  (e.g. 5000.00)
+3. Change Status → payment_pending  →  Save
+4. Razorpay order auto-created, transaction record saved
+5. Customer sees "Pay Now" button on order-detail.html
+6. Customer completes payment via Razorpay checkout
+7. Webhook fires → order status auto-updated to payment_done
 ```
 
 ---
 
-## Key Inputs & Outputs
-
-**Register** `POST /auth/register/`
-```json
-// Input
-{ "email", "password", "confirm_password", "brand_name", "contact_name", "phone" }
-
-// Output
-{ "message", "user": { "id", "email", "role" }, "access", "refresh" }
-```
+## Key Request / Response Examples
 
 **Login** `POST /auth/login/`
 ```json
-// Input
-{ "email", "password" }
+// Request
+{ "email": "customer@example.com", "password": "password123" }
 
-// Output
-{ "message", "user": { "id", "email", "role" }, "access", "refresh" }
+// Response
+{ "message": "Login successful.", "user": { "id", "email", "role" }, "access", "refresh" }
 ```
 
 **Submit Enquiry** `POST /enquiries/`
-```json
-// Input (multipart/form-data)
-{ "order_type", "full_name", "phone", "email", "brand_name", "message",
-  "source_page"(opt), "company_age_years"(opt), "total_pieces_required"(opt),
-  "annual_revenue"(opt), "wl_prototype"(opt), "fabric"(opt),
-  "images"(opt, multiple files) }
+```
+Content-Type: multipart/form-data
 
-// Output
-{ "message", "data": { "id", "enquiry_number", "order_type",
-  "full_name", "phone", "email", "brand_name", "status",
-  "wl_prototype", "fabric", "images", "created_at" } }
+order_type, full_name, phone, email, brand_name, message  (required)
+source_page, company_age_years, total_pieces_required, annual_revenue  (optional)
+wl_prototype, fabric  (optional — UUID, set when coming from catalogue page)
+images  (optional — multiple files)
 ```
 
 **Place WL Order** `POST /orders/wl/`
 ```json
-// Input
-{ "white_label_catalogue": "uuid",
-  "size_breakdown": "[{\"size\":\"S\",\"quantity\":24}]",
-  "customization_notes"(opt) }
-
-// Output
-{ "message", "data": { full order detail } }
+{
+  "white_label_catalogue": "<prototype-uuid>",
+  "size_breakdown": "[{\"size\":\"S\",\"quantity\":24},{\"size\":\"M\",\"quantity\":36}]",
+  "customization_notes": "Add brand label on collar"
+}
 ```
 
 **Place PL Order** `POST /orders/pl/`
 ```json
-// Input
-{ "style_name", "for_category", "garment_type",
-  "size_breakdown": "[{\"size\":\"S\",\"quantity\":60}]",
-  "pl_fabric_1"(opt uuid), "pl_fabric_2"(opt uuid), "pl_fabric_3"(opt uuid),
-  "notes"(opt) }
-
-// Output
-{ "message", "data": { full order detail } }
+{
+  "style_name": "Summer Kurti 001",
+  "for_category": "women",
+  "garment_type": "kurti",
+  "size_breakdown": "[{\"size\":\"M\",\"quantity\":60}]",
+  "pl_fabric_1": "<fabric-uuid>",
+  "notes": "Refer to attached design sketch"
+}
 ```
 
 **Place Fabrics Order** `POST /orders/fabrics/`
 ```json
-// Input
-{ "fabric_catalogue": "uuid", "total_quantity": 500, "message": "..." }
-
-// Output
-{ "message", "data": { full order detail } }
+{
+  "fabric_catalogue": "<fabric-uuid>",
+  "total_quantity": 500,
+  "message": "Need in red and blue colourways, deliver by March"
+}
 ```
 
 **Get Order Detail** `GET /orders/<uuid>/`
 ```json
-// Output
-{ "id", "order_number", "order_type",
-  "customer", "created_by", "enquiry",
-  "wl_prototype", "fabric", "pl_fabrics",
-  "style_name", "for_category", "garment_type",
-  "fit_sizes", "size_breakdown", "total_quantity", "moq",
-  "customization_notes", "message", "fabric_type",
-  "status", "valid_stages", "notes",
-  "images", "stage_history",
-  "created_at", "updated_at" }
+// Response includes:
+{
+  "id", "order_number", "order_type", "status",
+  "customer", "wl_prototype", "fabric",
+  "size_breakdown", "total_quantity", "moq",
+  "valid_stages", "stage_history",
+  "payment_amount",
+  "payment": {
+    "transaction_id", "razorpay_order_id",
+    "amount", "currency", "status",
+    "payment_reference", "paid_at", "key_id"
+  }
+}
 ```
 
 **Update Order Status** `PATCH /orders/<uuid>/status/`
 ```json
-// Input (Admin/Staff only)
-{ "status": "cutting", "notes"(opt): "Started cutting today" }
-
-// Output — full order detail with updated stage_history
+// Request (Admin/Staff only)
+{ "status": "cutting", "notes": "Started cutting today" }
 ```
 
-**Create Payment** `POST /payments/orders/<uuid>/create/`
-```json
-// Input (Admin/Staff only)
-{ "amount": 5000.00, "notes"(opt): "Payment for WL-2026-00001" }
+---
 
-// Output
-{ "transaction_id", "razorpay_order_id", "amount_paise",
-  "amount_inr", "currency", "key_id" }
-```
+## Admin Panel
 
-**Payment Status** `GET /payments/orders/<uuid>/status/`
-```json
-// Output
-{ "order_number", "order_status",
-  "payment_type", "amount", "currency",
-  "status", "razorpay_order_id",
-  "payment_reference", "paid_at" }
-```
+Access at: `http://127.0.0.1:8000/admin/`
+
+Key features:
+- **Orders** — view all orders, update status, set payment amount (auto-creates Razorpay payment), export to Excel
+- **Enquiries** — view submissions, assign to staff, update status
+- **Catalogue** — manage WL prototypes and fabrics with image uploads
+- **Payments** — view all transactions with Razorpay order IDs
+- **Users / Customers** — manage accounts and brand profiles

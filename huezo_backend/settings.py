@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 import os
 from pathlib import Path
-
+import environ
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,6 +21,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-y34bhcv5z9=dzuak%&g^3t7n_u3c4+-o2knf!t^w96we)bai+d'
+
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
+RAZORPAY_KEY_ID         = env("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET     =env("RAZORPAY_KEY_SECRET")
+RAZORPAY_WEBHOOK_SECRET =env("RAZORPAY_WEBHOOK_SECRET")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -36,6 +43,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'orders',
     'payments',
+    'dashboard',
     'rest_framework',
     'django.contrib.admin',
     'django.contrib.auth',

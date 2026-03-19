@@ -1,8 +1,104 @@
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from django.contrib import admin
 from django.utils.html import format_html
-from django.contrib import messages
 from django.utils.safestring import mark_safe
-from .models import Order, OrderStageHistory, OrderImage
+from django.utils import timezone
+from django.http import HttpResponse
+from django.contrib import messages
+from .models import Order, OrderStageHistory, OrderImage, OrderNote
+
+
+# ── EXCEL HELPER ───────────────────────────────────────────────────────
+
+def export_orders_to_excel(queryset, filename):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Orders"
+
+    header_fill = PatternFill("solid", fgColor="1a1a2e")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    border_side = Side(style="thin", color="CCCCCC")
+    cell_border = Border(
+        left=border_side, right=border_side,
+        top=border_side,  bottom=border_side,
+    )
+    alt_fill = PatternFill("solid", fgColor="F2F2F2")
+
+    headers = [
+        "Order No.", "Order Type", "Status",
+        "Customer Email", "Created By",
+        "WL Prototype", "Fabric",
+        "Style Name", "Category", "Garment Type",
+        "Fit Sizes", "Total Qty", "MOQ",
+        "Payment Amount", "Customization Notes",
+        "Message", "Fabric Type",
+        "Admin Notes", "Enquiry No.", "Created At",
+    ]
+
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font      = header_font
+        cell.fill      = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border    = cell_border
+    ws.row_dimensions[1].height = 28
+
+    for row_num, order in enumerate(queryset, start=2):
+        ws.append([
+            order.order_number,
+            order.get_order_type_display(),
+            order.status.replace("_", " ").title(),
+            order.customer_user.email,
+            order.created_by_user.email,
+            order.white_label_catalogue.prototype_code if order.white_label_catalogue else "—",
+            order.fabric_catalogue.fabric_name if order.fabric_catalogue else "—",
+            order.style_name or "—",
+            order.for_category or "—",
+            order.garment_type or "—",
+            order.fit_sizes or "—",
+            order.total_quantity,
+            order.moq or "—",
+            f"₹{order.payment_amount}" if order.payment_amount else "—",
+            order.customization_notes or "—",
+            order.message or "—",
+            order.fabric_type or "—",
+            order.notes or "—",
+            order.enquiry.enquiry_number if order.enquiry else "—",
+            order.created_at.strftime("%d %b %Y %H:%M"),
+        ])
+        if row_num % 2 == 0:
+            for col in range(1, len(headers) + 1):
+                ws.cell(row=row_num, column=col).fill = alt_fill
+        for col in range(1, len(headers) + 1):
+            ws.cell(row=row_num, column=col).border = cell_border
+
+    for col, h in enumerate(headers, 1):
+        ws.column_dimensions[get_column_letter(col)].width = max(len(h) + 4, 16)
+    ws.freeze_panes = "A2"
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
+
+
+class OrderNoteInline(admin.TabularInline):
+    model           = OrderNote
+    extra           = 1
+    fields          = ["note", "added_by", "created_at"]
+    readonly_fields = ["added_by", "created_at"]
+    ordering        = ["-created_at"]
+    verbose_name    = "Note"
+    verbose_name_plural = "Notes"
+
+    def save_model(self, request, obj, form, change):
+        if not obj.added_by:
+            obj.added_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 class OrderStageHistoryInline(admin.TabularInline):
@@ -42,7 +138,17 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter   = ["order_type", "status", "for_category", "fabric_type"]
     search_fields = ["order_number", "customer_user__email", "style_name"]
     ordering      = ["-created_at"]
-    inlines       = [OrderStageHistoryInline, OrderImageInline]
+    inlines       = [OrderNoteInline, OrderStageHistoryInline, OrderImageInline]
+    actions       = [
+        "export_all_as_excel",
+        "export_wl_as_excel",
+        "export_pl_as_excel",
+        "export_fabrics_as_excel",
+        "mark_as_payment_pending",
+        "mark_as_payment_done",
+        "mark_as_dispatch",
+        "mark_as_delivered",
+    ]
 
     readonly_fields = [
         # Auto-filled at creation — never editable
@@ -172,6 +278,72 @@ class OrderAdmin(admin.ModelAdmin):
 
     # ── Save logic ─────────────────────────────────────────────────── #
 
+    # ── Actions ────────────────────────────────────────────────────── #
+
+    @admin.action(description="📥 Export selected orders to Excel")
+    def export_all_as_excel(self, request, queryset):
+        qs = queryset.select_related(
+            "customer_user", "created_by_user",
+            "white_label_catalogue", "fabric_catalogue", "enquiry",
+        )
+        return export_orders_to_excel(qs, f"orders_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+
+    @admin.action(description="📥 Export White Label orders to Excel")
+    def export_wl_as_excel(self, request, queryset):
+        qs = queryset.filter(order_type="white_label").select_related(
+            "customer_user", "created_by_user", "white_label_catalogue", "enquiry",
+        )
+        return export_orders_to_excel(qs, f"orders_wl_{timezone.now().strftime('%Y%m%d')}.xlsx")
+
+    @admin.action(description="📥 Export Private Label orders to Excel")
+    def export_pl_as_excel(self, request, queryset):
+        qs = queryset.filter(order_type="private_label").select_related(
+            "customer_user", "created_by_user", "enquiry",
+        )
+        return export_orders_to_excel(qs, f"orders_pl_{timezone.now().strftime('%Y%m%d')}.xlsx")
+
+    @admin.action(description="📥 Export Fabrics orders to Excel")
+    def export_fabrics_as_excel(self, request, queryset):
+        qs = queryset.filter(order_type="fabrics").select_related(
+            "customer_user", "created_by_user", "fabric_catalogue", "enquiry",
+        )
+        return export_orders_to_excel(qs, f"orders_fabrics_{timezone.now().strftime('%Y%m%d')}.xlsx")
+
+    @admin.action(description="💳 Mark selected orders as Payment Pending")
+    def mark_as_payment_pending(self, request, queryset):
+        self._bulk_update_status(request, queryset, "payment_pending")
+
+    @admin.action(description="✅ Mark selected orders as Payment Done")
+    def mark_as_payment_done(self, request, queryset):
+        self._bulk_update_status(request, queryset, "payment_done")
+
+    @admin.action(description="🚚 Mark selected orders as Dispatched")
+    def mark_as_dispatch(self, request, queryset):
+        self._bulk_update_status(request, queryset, "dispatch")
+
+    @admin.action(description="📦 Mark selected orders as Delivered")
+    def mark_as_delivered(self, request, queryset):
+        self._bulk_update_status(request, queryset, "delivered")
+
+    def _bulk_update_status(self, request, queryset, new_status):
+        from .models import OrderStageHistory
+        updated = 0
+        for order in queryset:
+            if order.status != new_status:
+                order.status = new_status
+                order.save(update_fields=["status", "updated_at"])
+                OrderStageHistory.objects.create(
+                    order      = order,
+                    stage      = new_status,
+                    changed_by = request.user,
+                    notes      = f"Bulk updated via admin panel.",
+                )
+                updated += 1
+        self.message_user(
+            request,
+            f"{updated} order(s) updated to '{new_status.replace('_', ' ').title()}'."
+        )
+
     def save_model(self, request, obj, form, change):
         if change:
             old = Order.objects.get(pk=obj.pk)
@@ -185,33 +357,38 @@ class OrderAdmin(admin.ModelAdmin):
                     notes      = "Updated via admin panel.",
                 )
 
-            # Auto-create Razorpay payment when status → payment_pending
-            # and payment_amount is set
-            if (
-                old.status != "payment_pending"
-                and obj.status == "payment_pending"
-                and obj.payment_amount
-            ):
+            # Auto-create Razorpay payment when:
+            # 1. Status just changed to payment_pending, OR
+            # 2. Amount was just set while already at payment_pending
+            status_just_changed = (old.status != "payment_pending" and obj.status == "payment_pending")
+            amount_just_set     = (obj.status == "payment_pending" and obj.payment_amount and not old.payment_amount)
+
+            if (status_just_changed or amount_just_set) and obj.payment_amount:
                 self._create_razorpay_payment(request, obj)
 
         super().save_model(request, obj, form, change)
 
     def _create_razorpay_payment(self, request, order):
         """Auto-create Razorpay payment when admin sets payment_pending."""
+        import traceback
         try:
             from payments import gateway
             from payments.models import PaymentTransaction, PaymentStatus
             from django.contrib.contenttypes.models import ContentType
 
+            # Debug info
+            messages.info(request, f"🔄 Creating payment for {order.order_number} | Amount: ₹{order.payment_amount}")
+
             ct = ContentType.objects.get_for_model(order)
 
             # Don't create duplicate
-            if PaymentTransaction.objects.filter(
+            existing = PaymentTransaction.objects.filter(
                 content_type=ct,
                 object_id=order.id,
                 status=PaymentStatus.PENDING,
-            ).exists():
-                messages.warning(request, "A pending payment already exists for this order.")
+            )
+            if existing.exists():
+                messages.warning(request, f"⚠️ Pending payment already exists: {existing.first().razorpay_order_id}")
                 return
 
             result = gateway.create_payment(
@@ -223,11 +400,11 @@ class OrderAdmin(admin.ModelAdmin):
             )
             messages.success(
                 request,
-                f"✅ Razorpay payment created. Order ID: {result['razorpay_order_id']} "
-                f"| Amount: ₹{order.payment_amount}"
+                f"✅ Razorpay payment created. Order ID: {result['razorpay_order_id']} | Amount: ₹{order.payment_amount}"
             )
         except Exception as e:
-            messages.error(request, f"❌ Failed to create Razorpay payment: {str(e)}")
+            messages.error(request, f"❌ Payment error: {str(e)}")
+            messages.error(request, f"🔍 Traceback: {traceback.format_exc()[:600]}")
 
     def has_add_permission(self, request):
         return False

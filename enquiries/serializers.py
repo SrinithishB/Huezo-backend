@@ -23,12 +23,6 @@ class EnquiryImageSerializer(serializers.ModelSerializer):
 # ── PUBLIC: CREATE ENQUIRY ─────────────────────────────────────────────
 
 class EnquiryCreateSerializer(serializers.ModelSerializer):
-    # images are uploaded as separate multipart files
-    images = serializers.ListField(
-        child=serializers.ImageField(),
-        write_only=True,
-        required=False,
-    )
 
     class Meta:
         model  = Enquiry
@@ -37,28 +31,13 @@ class EnquiryCreateSerializer(serializers.ModelSerializer):
             'brand_name', 'company_age_years', 'total_pieces_required',
             'annual_revenue', 'message', 'source_page',
             'wl_prototype', 'fabric',
-            'images',
         ]
 
     def validate(self, attrs):
-        order_type   = attrs.get('order_type')
-        wl_prototype = attrs.get('wl_prototype')
-        fabric       = attrs.get('fabric')
-
-        # White label enquiry must link to a prototype
-        if order_type == 'white_label' and not wl_prototype:
-            raise serializers.ValidationError(
-                {"wl_prototype": "wl_prototype is required for white_label enquiries."}
-            )
-        # Fabrics enquiry must link to a fabric
-        if order_type == 'fabrics' and not fabric:
-            raise serializers.ValidationError(
-                {"fabric": "fabric is required for fabrics enquiries."}
-            )
         return attrs
 
     def create(self, validated_data):
-        images_data = validated_data.pop('images', [])
+        images_data = self.context.get('images', [])
         enquiry     = Enquiry.objects.create(**validated_data)
 
         for image_file in images_data:

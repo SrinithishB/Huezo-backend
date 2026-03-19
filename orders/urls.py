@@ -4,6 +4,7 @@ from .views import (
     OrderListView,
     OrderDetailView,
     OrderStatusUpdateView,
+    OrderNotesView,
 )
 
 urlpatterns = [
@@ -18,4 +19,7 @@ urlpatterns = [
 
     # ── Admin: update stage ────────────────────────────────────────── #
     path("orders/<uuid:id>/status/", OrderStatusUpdateView.as_view(), name="order-status-update"),
+
+    # ── Notes (admin + customer) ───────────────────────────────────── #
+    path("orders/<uuid:id>/notes/",  OrderNotesView.as_view(),        name="order-notes"),
 ]

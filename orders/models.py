@@ -279,3 +279,21 @@ class OrderImage(models.Model):
 
     def __str__(self):
         return f"{self.file_name} — {self.order.order_number}"
+    
+# ── ORDER NOTES ────────────────────────────────────────────────────────
+ 
+class OrderNote(models.Model):
+    id    = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="order_notes")
+    note     = models.TextField(help_text="Note content")
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL,null=True, blank=True,on_delete=models.SET_NULL,related_name="order_notes",help_text="User who added the note",)
+    created_at = models.DateTimeField(auto_now_add=True)
+ 
+    class Meta:
+        db_table     = "order_notes"
+        ordering     = ["-created_at"]
+        verbose_name = "Order Note"
+        verbose_name_plural = "Order Notes"
+ 
+    def __str__(self):
+        return f"Note on {self.order.order_number}"

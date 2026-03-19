@@ -41,13 +41,11 @@ class EnquiryCreateView(APIView):
     parser_classes     = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request):
-        # Pull images separately from request.FILES
-        data       = request.data.copy()
         image_list = request.FILES.getlist('images')
 
         serializer = EnquiryCreateSerializer(
-            data={**data, 'images': image_list},
-            context={'request': request},
+            data=request.data,
+            context={'request': request, 'images': image_list},
         )
         if serializer.is_valid():
             enquiry  = serializer.save()

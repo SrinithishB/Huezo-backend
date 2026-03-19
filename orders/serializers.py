@@ -334,6 +334,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     images        = OrderImageSerializer(many=True, read_only=True)
     stage_history = OrderStageHistorySerializer(many=True, read_only=True)
     valid_stages  = serializers.SerializerMethodField()
+    payment       = serializers.SerializerMethodField()
 
     class Meta:
         model  = Order
@@ -346,6 +347,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "total_quantity", "moq",
             "customization_notes", "message", "fabric_type",
             "status", "valid_stages",
+            "payment_amount", "payment",
             "notes", "images", "stage_history",
             "created_at", "updated_at",
         ]
@@ -399,6 +401,27 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     def get_valid_stages(self, obj):
         return [{"value": s[0], "label": s[1]} for s in obj.valid_stages]
 
+    def get_payment(self, obj):
+        from payments.models import PaymentTransaction
+        from django.contrib.contenttypes.models import ContentType
+        from django.conf import settings
+        ct = ContentType.objects.get_for_model(obj)
+        tx = PaymentTransaction.objects.filter(
+            content_type=ct, object_id=obj.id
+        ).order_by("-created_at").first()
+        if not tx:
+            return None
+        return {
+            "transaction_id":    str(tx.id),
+            "razorpay_order_id": tx.razorpay_order_id,
+            "amount":            str(tx.amount),
+            "currency":          tx.currency,
+            "status":            tx.status,
+            "payment_reference": tx.payment_reference,
+            "paid_at":           tx.paid_at,
+            "key_id":            settings.RAZORPAY_KEY_ID,
+        }
+
 
 # ── ADMIN: UPDATE ORDER STATUS ─────────────────────────────────────────
 
@@ -414,3 +437,26 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
                 f"Invalid status for {order.order_type}. Valid: {valid}"
             )
         return value
+
+# ── ORDER NOTES ────────────────────────────────────────────────────────
+ 
+class OrderNoteSerializer(serializers.ModelSerializer):
+    added_by = serializers.SerializerMethodField()
+ 
+    class Meta:
+        model  = __import__('orders.models', fromlist=['OrderNote']).OrderNote
+        fields = ["id", "note", "added_by", "created_at"]
+        read_only_fields = ["id", "added_by", "created_at"]
+ 
+    def get_added_by(self, obj):
+        if obj.added_by:
+            return {
+                "id":    str(obj.added_by.id),
+                "email": obj.added_by.email,
+                "role":  obj.added_by.role,
+            }
+        return None
+ 
+ 
+class OrderNoteCreateSerializer(serializers.Serializer):
+    note = serializers.CharField(min_length=1)
