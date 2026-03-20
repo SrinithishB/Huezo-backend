@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import NotFound
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -146,15 +147,21 @@ class MeView(APIView):
 class MyCustomerProfileView(generics.RetrieveUpdateAPIView):
     """
     GET   /api/customers/me/   — view own customer profile
-    PATCH /api/customers/me/   — update own customer profile
+    PATCH /api/customers/me/   — update own customer profile (multipart for profile_picture)
     """
     permission_classes = [IsAuthenticated]
+    parser_classes     = [MultiPartParser, FormParser, JSONParser]
     http_method_names  = ["get", "patch"]
 
     def get_serializer_class(self):
         if self.request.method == "PATCH":
             return CustomerUpdateSerializer
         return CustomerDetailSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["request"] = self.request
+        return context
 
     def get_object(self):
         try:

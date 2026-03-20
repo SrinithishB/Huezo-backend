@@ -146,6 +146,13 @@ class Customer(models.Model):
     pin_code = models.CharField(max_length=12,null=True,blank=True,help_text="Postal code.",)
     country = models.CharField(max_length=80,default="India",help_text="Country.",)
 
+    # Profile picture
+    profile_picture = models.ImageField(
+        upload_to="customers/profile_pictures/",
+        null=True, blank=True,
+        help_text="Customer profile picture.",
+    )
+
     # Audit — who created this account
     created_by_admin = models.ForeignKey("User",null=True,blank=True, on_delete=models.SET_NULL,related_name="created_customers",
         help_text="Which admin created this account.",)

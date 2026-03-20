@@ -154,9 +154,14 @@ class PaymentStatusView(APIView):
             })
 
         serializer = PaymentTransactionSerializer(transaction)
+        from django.conf import settings
         return Response({
-            "order_number": order.order_number,
-            "order_status": order.status,
+            "order_number":    order.order_number,
+            "order_status":    order.status,
+            "payment_amount":  str(order.payment_amount) if order.payment_amount else None,
+            "payment_status":  transaction.status,
+            "razorpay_order_id": transaction.razorpay_order_id,
+            "key_id":          settings.RAZORPAY_KEY_ID,
             **serializer.data,
         })
 

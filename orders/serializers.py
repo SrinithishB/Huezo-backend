@@ -330,6 +330,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     created_by    = serializers.SerializerMethodField()
     wl_prototype  = serializers.SerializerMethodField()
     fabric        = serializers.SerializerMethodField()
+    pl_fabrics    = serializers.SerializerMethodField()
     enquiry       = serializers.SerializerMethodField()
     images        = OrderImageSerializer(many=True, read_only=True)
     stage_history = OrderStageHistorySerializer(many=True, read_only=True)
@@ -341,7 +342,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         fields = [
             "id", "order_number", "order_type",
             "customer", "created_by", "enquiry",
-            "wl_prototype", "fabric",
+            "wl_prototype", "fabric", "pl_fabrics",
             "style_name", "for_category", "garment_type",
             "fit_sizes", "size_breakdown",
             "total_quantity", "moq",

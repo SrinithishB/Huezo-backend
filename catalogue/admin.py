@@ -29,7 +29,7 @@ class WLPrototypeAdmin(admin.ModelAdmin):
     ]
     list_filter     = ["for_gender", "is_active", "is_prebooking", "garment_type"]
     search_fields   = ["prototype_code", "garment_type", "collection_name"]
-    readonly_fields = ["id", "thumbnail_preview", "created_at", "updated_at"]
+    readonly_fields = ["id", "thumbnail_preview", "created_by_admin", "created_at", "updated_at"]
     ordering        = ["-created_at"]
     inlines         = [WLPrototypeImageInline]
 
@@ -65,10 +65,13 @@ class WLPrototypeAdmin(admin.ModelAdmin):
     thumbnail_preview.short_description = "Preview"
 
     def save_model(self, request, obj, form, change):
-        # Auto-assign created_by_admin on first save
         if not change and not obj.created_by_admin:
             obj.created_by_admin = request.user
         super().save_model(request, obj, form, change)
+
+    def has_view_permission(self, request, obj=None):   return True
+    def has_change_permission(self, request, obj=None): return True
+    def has_add_permission(self, request):              return True
 
 
 @admin.register(WLPrototypeImage)
@@ -121,7 +124,7 @@ class FabricsCatalogueAdmin(admin.ModelAdmin):
     ]
     list_filter     = ["fabric_type", "is_active"]
     search_fields   = ["fabric_name", "composition", "description"]
-    readonly_fields = ["id", "thumbnail_preview", "created_at", "updated_at"]
+    readonly_fields = ["id", "thumbnail_preview", "created_by", "created_at", "updated_at"]
     ordering        = ["-created_at"]
     inlines         = [FabricImageInline]
 
@@ -167,6 +170,10 @@ class FabricsCatalogueAdmin(admin.ModelAdmin):
         if not change and not obj.created_by:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+    def has_view_permission(self, request, obj=None):   return True
+    def has_change_permission(self, request, obj=None): return True
+    def has_add_permission(self, request):              return True
 
 
 @admin.register(FabricsCatalogueImage)

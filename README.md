@@ -8,25 +8,13 @@ Django REST API for the Huezo B2B fashion manufacturing platform — White Label
 
 ```
 backend/
-├── frontend/                  # HTML/CSS/JS customer portal
-│   ├── _base.css              # Shared styles
-│   ├── _base.js               # Auth, API, UI helpers
-│   ├── login.html             # Login page
-│   ├── catalogue.html         # WL Catalogue + order placement
-│   ├── fabrics.html           # Fabrics Catalogue + order placement
-│   ├── private-label.html     # Private Label order form
-│   ├── orders.html            # My Orders list
-│   ├── order-detail.html      # Order detail + timeline + payment
-│   ├── profile.html           # Account & brand profile
-│   └── enquiry.html           # Public enquiry form (no login)
-│
 └── huezo_backend/             # Django project
     ├── accounts/              # Users, roles, customer profiles, auth
     ├── catalogue/             # WL prototypes + fabrics catalogue
     ├── enquiries/             # Public enquiry submissions
     ├── orders/                # Order placement, stages, history
     ├── payments/              # Razorpay integration
-    ├── dashboard/             # Admin stats (WIP)
+    ├── dashboard/             # Admin stats + Excel exports
     └── huezo_backend/         # Django settings, urls, wsgi
 ```
 
@@ -101,7 +89,7 @@ openpyxl
 | `enquiries` | Public enquiry form — no login required. Status tracking (new → accepted / rejected). Assignable to staff. Linkable to WL prototype or fabric. |
 | `orders` | 3 order types: White Label, Private Label, Fabrics. Each has its own status pipeline. Auto-generates order numbers. Stage history timeline. |
 | `payments` | Razorpay payment transactions. Generic FK — works for orders and any future payment type. Webhook handler for captured / failed / refunded events. |
-| `dashboard` | Admin stats and reporting (WIP). |
+| `dashboard` | Admin stats, Excel exports for orders and enquiries. |
 
 ---
 
@@ -112,21 +100,6 @@ openpyxl
 | `admin` | ✅ Full access | All endpoints |
 | `staff` | ❌ | All read + update endpoints |
 | `customer` | ❌ | Own orders, own profile, catalogue |
-
----
-
-## Frontend Pages
-
-| Page | Auth Required | Description |
-|---|---|---|
-| `login.html` | ❌ | Email + password login |
-| `enquiry.html` | ❌ | Public enquiry form (4 types) |
-| `catalogue.html` | ✅ | Browse WL prototypes, place WL orders |
-| `fabrics.html` | ✅ | Browse fabrics catalogue, place fabric orders |
-| `private-label.html` | ✅ | Place private label orders with fabric selection |
-| `orders.html` | ✅ | View all orders with filters |
-| `order-detail.html` | ✅ | Order detail, stage timeline, Razorpay payment |
-| `profile.html` | ✅ | View/edit account and brand profile |
 
 ---
 
@@ -243,6 +216,8 @@ All protected routes require: `Authorization: Bearer <access_token>`
 | GET | `/orders/` | ✅ | List orders (admin = all, customer = own) |
 | GET | `/orders/<uuid>/` | ✅ | Order detail + timeline + payment info |
 | PATCH | `/orders/<uuid>/status/` | ✅ Admin/Staff | Update order stage |
+| GET | `/orders/<uuid>/notes/` | ✅ | List notes on an order |
+| POST | `/orders/<uuid>/notes/` | ✅ | Add a note to an order |
 
 **Filters for** `GET /orders/`:
 ```
@@ -371,6 +346,7 @@ images  (optional — multiple files)
 {
   "id", "order_number", "order_type", "status",
   "customer", "wl_prototype", "fabric",
+  "pl_fabrics": [{"choice", "id", "fabric_name", "fabric_type", "composition"}],
   "size_breakdown", "total_quantity", "moq",
   "valid_stages", "stage_history",
   "payment_amount",
@@ -388,6 +364,30 @@ images  (optional — multiple files)
 { "status": "cutting", "notes": "Started cutting today" }
 ```
 
+**Add Order Note** `POST /orders/<uuid>/notes/`
+```json
+// Request
+{ "note": "Customer requested early dispatch" }
+```
+
+---
+
+### Dashboard / Exports
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|
+| GET | `/dashboard/summary/` | ✅ Admin/Staff | Counts for orders and enquiries |
+| GET | `/dashboard/export/orders/` | ✅ Admin/Staff | Download orders as Excel (3 sheets) |
+| GET | `/dashboard/export/enquiries/` | ✅ Admin/Staff | Download enquiries as Excel (2 sheets) |
+
+**Filters for exports:**
+```
+?order_type=white_label | private_label | fabrics
+?status=<status>
+?date_from=2026-01-01
+?date_to=2026-03-31
+```
+
 ---
 
 ## Admin Panel
@@ -395,8 +395,18 @@ images  (optional — multiple files)
 Access at: `http://127.0.0.1:8000/admin/`
 
 Key features:
-- **Orders** — view all orders, update status, set payment amount (auto-creates Razorpay payment), export to Excel
+- **Orders** — view all orders, update status, set payment amount (auto-creates Razorpay payment), export to Excel, bulk status actions
 - **Enquiries** — view submissions, assign to staff, update status
 - **Catalogue** — manage WL prototypes and fabrics with image uploads
 - **Payments** — view all transactions with Razorpay order IDs
 - **Users / Customers** — manage accounts and brand profiles
+
+---
+
+## Recent Changes
+
+- `orders/serializers.py` — `pl_fabrics` field added to `OrderDetailSerializer` so Private Label fabric selections are returned in the order detail response
+- `payments/views.py` — `PaymentStatusView` now returns `payment_status`, `payment_amount`, and `key_id` explicitly for consistent frontend consumption
+- `frontend/order-detail.html` — Razorpay checkout.js integrated; "Pay Now" button opens the real Razorpay checkout modal instead of an alert
+- `dashboard` app — Excel export endpoints for orders (3 sheets: All Orders, Summary by Type, Stage History) and enquiries (2 sheets: All Enquiries, Summary by Type)
+- `orders` app — `OrderNote` model + `GET/POST /orders/<uuid>/notes/` endpoints added

@@ -116,10 +116,11 @@ class UserDetailSerializer(serializers.ModelSerializer):
 # CUSTOMER SERIALIZERS
 
 class CustomerDetailSerializer(serializers.ModelSerializer):
-    email        = serializers.EmailField(source="user.email", read_only=True)
-    is_active    = serializers.BooleanField(source="user.is_active", read_only=True)
-    last_login_at = serializers.DateTimeField(source="user.last_login_at", read_only=True)
-    full_address = serializers.SerializerMethodField()
+    email             = serializers.EmailField(source="user.email", read_only=True)
+    is_active         = serializers.BooleanField(source="user.is_active", read_only=True)
+    last_login_at     = serializers.DateTimeField(source="user.last_login_at", read_only=True)
+    full_address      = serializers.SerializerMethodField()
+    profile_picture_url = serializers.SerializerMethodField()
 
     class Meta:
         model  = Customer
@@ -127,12 +128,18 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
             "id", "email", "is_active",
             "brand_name", "contact_name", "phone", "alternate_phone",
             "address_line1", "address_line2", "city", "state", "pin_code", "country",
-            "full_address",
+            "full_address", "profile_picture_url",
             "last_login_at", "created_at", "updated_at",
         ]
 
     def get_full_address(self, obj):
         return obj.full_address()
+
+    def get_profile_picture_url(self, obj):
+        request = self.context.get("request")
+        if obj.profile_picture and request:
+            return request.build_absolute_uri(obj.profile_picture.url)
+        return None
 
 
 class CustomerUpdateSerializer(serializers.ModelSerializer):
@@ -142,5 +149,6 @@ class CustomerUpdateSerializer(serializers.ModelSerializer):
         fields = [
             "brand_name", "contact_name", "phone", "alternate_phone",
             "address_line1", "address_line2", "city", "state", "pin_code", "country",
+            "profile_picture",
         ]
         extra_kwargs = {f: {"required": False} for f in fields}
