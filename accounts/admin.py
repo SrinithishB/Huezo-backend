@@ -1,71 +1,95 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, UserRole, Customer
+from .models import User, Customer
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    ordering      = ["email"]
-    list_display  = ["email", "role", "is_active", "is_locked", "created_at"]
-    list_filter   = ["role", "is_active"]
-    search_fields = ["email"]
+    list_display    = ["email", "role", "is_active", "is_staff", "is_superuser", "created_at"]
+    list_filter     = ["role", "is_active", "is_staff"]
+    search_fields   = ["email"]
+    ordering        = ["-created_at"]
+    readonly_fields = [
+        "id", "last_login_at", "created_at", "updated_at",
+        "failed_login_attempts", "locked_until",
+    ]
 
     fieldsets = (
-        (None,            {"fields": ("email", "password")}),
-        ("Role & Status", {"fields": ("role", "is_active")}),
-        ("Lockout",       {"fields": ("failed_login_attempts", "locked_until")}),
-        ("Timestamps",    {"fields": ("last_login_at", "created_at", "updated_at")}),
+        ("Account",    {"fields": ("id", "email", "password")}),
+        ("Role",       {"fields": ("role",)}),
+        ("Status",     {"fields": ("is_active", "is_staff", "is_superuser")}),
+        ("Lockout",    {"fields": ("failed_login_attempts", "locked_until")}),
+        ("Timestamps", {"fields": ("last_login_at", "created_at", "updated_at")}),
     )
-    readonly_fields = ["is_staff", "created_at", "updated_at", "last_login_at"]
-
     add_fieldsets = (
-        (None, {
+        ("Create User", {
             "classes": ("wide",),
-            "fields": ("email", "password1", "password2", "role"),
+            "fields":  ("email", "password1", "password2", "role"),
         }),
     )
 
-    # Grant view + change permissions to all admin users
-    def has_view_permission(self, request, obj=None):   return True
-    def has_change_permission(self, request, obj=None): return True
-    def has_add_permission(self, request):              return True
-    def has_delete_permission(self, request, obj=None): return request.user.is_superuser
+    # ── Permission gates ──────────────────────────────────────────── #
 
+    def has_add_permission(self, request):
+        """Only superadmin can create new users."""
+        return request.user.is_superuser
 
-class CustomerUserRawIdWidget(admin.widgets.ForeignKeyRawIdWidget):
-    """Limits the user popup to customer-role users only."""
-    def url_parameters(self):
-        params = super().url_parameters()
-        params['role'] = 'customer'
-        return params
+    def has_delete_permission(self, request, obj=None):
+        """Only superadmin can delete users."""
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        """
+        superadmin → can change anything
+        admin      → can change users (e.g. reset password, change role)
+                     but cannot promote anyone to superuser (handled in save)
+        staff      → read only
+        """
+        if request.user.is_superuser:
+            return True
+        if request.user.role == "admin":
+            return True
+        return False
+
+    def save_model(self, request, obj, form, change):
+        """Prevent admin from granting superuser to anyone."""
+        if not request.user.is_superuser:
+            obj.is_superuser = False   # Admin cannot make someone a superuser
+        super().save_model(request, obj, form, change)
+
+    def get_readonly_fields(self, request, obj=None):
+        """Admin cannot change is_superuser field."""
+        rf = list(self.readonly_fields)
+        if not request.user.is_superuser:
+            rf.append("is_superuser")
+        return rf
 
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display  = ["brand_name", "contact_name", "phone", "city", "country", "created_at"]
-    list_filter   = ["country", "city"]
-    search_fields = ["brand_name", "contact_name", "phone", "user__email"]
-    readonly_fields = ["created_at", "updated_at", "created_by_admin"]
+    list_display    = ["brand_name", "contact_name", "phone", "user", "city", "created_at"]
+    search_fields   = ["brand_name", "contact_name", "phone", "user__email"]
+    list_filter     = ["city", "state", "country"]
+    readonly_fields = ["id", "created_at", "updated_at"]
+    ordering        = ["-created_at"]
 
     fieldsets = (
-        ("Linked User",   {"fields": ("user",)}),
-        ("Brand Info",    {"fields": ("brand_name", "contact_name", "phone", "alternate_phone")}),
-        ("Address",       {"fields": ("address_line1", "address_line2", "city", "state", "pin_code", "country")}),
-        ("Audit",         {"fields": ("created_by_admin", "created_at", "updated_at")}),
+        ("Customer Info", {
+            "fields": ("id", "user", "brand_name", "contact_name"),
+        }),
+        ("Contact", {
+            "fields": ("phone", "alternate_phone"),
+        }),
+        ("Address", {
+            "fields": ("address_line1", "address_line2", "city", "state", "pin_code", "country"),
+        }),
+        ("Audit", {
+            "fields": ("created_by_admin", "created_at", "updated_at"),
+        }),
     )
 
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        # Limit the user dropdown to customer-role users only
-        if db_field.name == "user":
-            kwargs["queryset"] = User.objects.filter(role=UserRole.CUSTOMER).order_by("email")
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+    def has_add_permission(self, request):
+        return request.user.is_superuser or request.user.role == "admin"
 
-    def save_model(self, request, obj, form, change):
-        # Auto-assign created_by_admin on first save
-        if not change and not obj.created_by_admin:
-            obj.created_by_admin = request.user
-        super().save_model(request, obj, form, change)
-
-    def has_view_permission(self, request, obj=None):   return True
-    def has_change_permission(self, request, obj=None): return True
-    def has_add_permission(self, request):              return True
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser

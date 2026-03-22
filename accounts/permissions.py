@@ -1,9 +1,9 @@
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 from .models import UserRole
 
 
 class IsAdmin(BasePermission):
-    """Allow access only to users with role='admin'."""
+    """Allow access only to admin role."""
     message = "Admin access required."
 
     def has_permission(self, request, view):
@@ -11,18 +11,6 @@ class IsAdmin(BasePermission):
             request.user and
             request.user.is_authenticated and
             request.user.role == UserRole.ADMIN
-        )
-
-
-class IsStaff(BasePermission):
-    """Allow access only to users with role='staff'."""
-    message = "Staff access required."
-
-    def has_permission(self, request, view):
-        return (
-            request.user and
-            request.user.is_authenticated and
-            request.user.role == UserRole.STAFF
         )
 
 
@@ -38,8 +26,25 @@ class IsAdminOrStaff(BasePermission):
         )
 
 
+class IsAdminOrStaffReadOnly(BasePermission):
+    """
+    Admin → full access (GET, POST, PUT, PATCH, DELETE)
+    Staff → read-only (GET, HEAD, OPTIONS only)
+    """
+    message = "Admin or staff access required."
+
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+        if request.user.role == UserRole.ADMIN:
+            return True
+        if request.user.role == UserRole.STAFF:
+            return request.method in SAFE_METHODS
+        return False
+
+
 class IsCustomer(BasePermission):
-    """Allow access only to users with role='customer'."""
+    """Allow access only to customer role."""
     message = "Customer access required."
 
     def has_permission(self, request, view):
@@ -48,23 +53,3 @@ class IsCustomer(BasePermission):
             request.user.is_authenticated and
             request.user.role == UserRole.CUSTOMER
         )
-
-
-class IsOwnerOrAdminOrStaff(BasePermission):
-    """
-    Object-level permission:
-    - Admin and Staff can access any object.
-    - Customer can only access their own object.
-    """
-    message = "You do not have permission to access this resource."
-
-    def has_object_permission(self, request, view, obj):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.role in (UserRole.ADMIN, UserRole.STAFF):
-            return True
-        # For Customer objects — check ownership
-        if hasattr(obj, "user"):
-            return obj.user == request.user
-        # For User objects
-        return obj == request.user
