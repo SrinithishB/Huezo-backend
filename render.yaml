@@ -3,7 +3,7 @@ services:
     name: huezo-backend
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn huezo_backend.wsgi:application --bind 0.0.0.0:$PORT"
+    startCommand: "gunicorn huezo_backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2"
     rootDir: .
     envVars:
       - key: SECRET_KEY
