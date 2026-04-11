@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'enquiries',
+    'cloudinary',
+    'cloudinary_storage',
 ]
 AUTH_USER_MODEL = "accounts.User"
 
@@ -198,8 +200,19 @@ STATICFILES_STORAGE = (
     "whitenoise.storage.CompressedManifestStaticFilesStorage"
 )
 
-MEDIA_URL  = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": env("CLOUDINARY_CLOUD_NAME", default=""),
+    "API_KEY":    env("CLOUDINARY_API_KEY",    default=""),
+    "API_SECRET": env("CLOUDINARY_API_SECRET", default=""),
+}
+
+MEDIA_URL = "/media/"
+DEFAULT_FILE_STORAGE = (
+    "cloudinary_storage.storage.MediaCloudinaryStorage"
+    if CLOUDINARY_STORAGE["CLOUD_NAME"]
+    else "django.core.files.storage.FileSystemStorage"
+)
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # used only in local dev
 
 FIREBASE_CREDENTIALS_PATH = BASE_DIR / "firebase-credentials.json"
 
