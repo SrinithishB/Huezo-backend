@@ -1,11 +1,12 @@
+from django.db.models import Count, Q
+from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import rest_framework as django_filters
 from rest_framework import generics, filters, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django.utils import timezone
-from django_filters.rest_framework import DjangoFilterBackend
-from django_filters import rest_framework as django_filters
 
 from .models import Enquiry
 from .serializers import (
@@ -144,11 +145,11 @@ class EnquiryUnreadCountView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrStaff]
 
     def get(self, request):
-        unread = Enquiry.objects.filter(is_viewed=False)
-        return Response({
-            "total":         unread.count(),
-            "private_label": unread.filter(order_type='private_label').count(),
-            "white_label":   unread.filter(order_type='white_label').count(),
-            "fabrics":       unread.filter(order_type='fabrics').count(),
-            "others":        unread.filter(order_type='others').count(),
-        })
+        stats = Enquiry.objects.filter(is_viewed=False).aggregate(
+            total         = Count("id"),
+            private_label = Count("id", filter=Q(order_type="private_label")),
+            white_label   = Count("id", filter=Q(order_type="white_label")),
+            fabrics       = Count("id", filter=Q(order_type="fabrics")),
+            others        = Count("id", filter=Q(order_type="others")),
+        )
+        return Response(stats)

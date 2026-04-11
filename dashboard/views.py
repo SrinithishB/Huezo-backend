@@ -1,9 +1,11 @@
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.views import APIView
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from accounts.permissions import IsAdminOrStaff
@@ -339,33 +341,61 @@ class DashboardSummaryView(APIView):
         from enquiries.models import Enquiry
         from orders.models import Order
 
-        return __import__('rest_framework').response.Response({
+        # Single query per model using conditional aggregation
+        enq = Enquiry.objects.aggregate(
+            total         = Count("id"),
+            unread        = Count("id", filter=Q(is_viewed=False)),
+            new           = Count("id", filter=Q(status="new")),
+            private_label = Count("id", filter=Q(order_type="private_label")),
+            white_label   = Count("id", filter=Q(order_type="white_label")),
+            fabrics       = Count("id", filter=Q(order_type="fabrics")),
+            others        = Count("id", filter=Q(order_type="others")),
+        )
+
+        ord = Order.objects.aggregate(
+            total           = Count("id"),
+            order_placed    = Count("id", filter=Q(status="order_placed")),
+            payment_pending = Count("id", filter=Q(status="payment_pending")),
+            payment_done    = Count("id", filter=Q(status="payment_done")),
+            dispatched      = Count("id", filter=Q(status="dispatch")),
+            delivered       = Count("id", filter=Q(status="delivered")),
+            private_label   = Count("id", filter=Q(order_type="private_label")),
+            white_label     = Count("id", filter=Q(order_type="white_label")),
+            fabrics         = Count("id", filter=Q(order_type="fabrics")),
+        )
+        in_progress = (
+            ord["total"]
+            - ord["order_placed"]
+            - ord["payment_pending"]
+            - ord["payment_done"]
+            - ord["dispatched"]
+            - ord["delivered"]
+        )
+
+        return Response({
             "enquiries": {
-                "total":         Enquiry.objects.count(),
-                "unread":        Enquiry.objects.filter(is_viewed=False).count(),
-                "new":           Enquiry.objects.filter(status="new").count(),
+                "total": enq["total"],
+                "unread": enq["unread"],
+                "new": enq["new"],
                 "by_type": {
-                    "private_label": Enquiry.objects.filter(order_type="private_label").count(),
-                    "white_label":   Enquiry.objects.filter(order_type="white_label").count(),
-                    "fabrics":       Enquiry.objects.filter(order_type="fabrics").count(),
-                    "others":        Enquiry.objects.filter(order_type="others").count(),
+                    "private_label": enq["private_label"],
+                    "white_label":   enq["white_label"],
+                    "fabrics":       enq["fabrics"],
+                    "others":        enq["others"],
                 },
             },
             "orders": {
-                "total":           Order.objects.count(),
-                "order_placed":    Order.objects.filter(status="order_placed").count(),
-                "in_progress":     Order.objects.exclude(
-                    status__in=["order_placed","payment_pending",
-                                "payment_done","dispatch","delivered"]
-                ).count(),
-                "payment_pending": Order.objects.filter(status="payment_pending").count(),
-                "payment_done":    Order.objects.filter(status="payment_done").count(),
-                "dispatched":      Order.objects.filter(status="dispatch").count(),
-                "delivered":       Order.objects.filter(status="delivered").count(),
+                "total":           ord["total"],
+                "order_placed":    ord["order_placed"],
+                "in_progress":     in_progress,
+                "payment_pending": ord["payment_pending"],
+                "payment_done":    ord["payment_done"],
+                "dispatched":      ord["dispatched"],
+                "delivered":       ord["delivered"],
                 "by_type": {
-                    "private_label": Order.objects.filter(order_type="private_label").count(),
-                    "white_label":   Order.objects.filter(order_type="white_label").count(),
-                    "fabrics":       Order.objects.filter(order_type="fabrics").count(),
+                    "private_label": ord["private_label"],
+                    "white_label":   ord["white_label"],
+                    "fabrics":       ord["fabrics"],
                 },
             },
         })

@@ -60,6 +60,13 @@ class Enquiry(models.Model):
         help_text="Linked fabric — set when enquiry comes from Fabrics page",
     )
 
+    # Category selection (Women's Wear / Men's Wear / Kids' Wear)
+    for_category = models.CharField(
+        max_length=10,
+        choices=[('women', "Women's Wear"), ('men', "Men's Wear"), ('kids', "Kids' Wear")],
+        null=True, blank=True,
+    )
+
     # Admin management
     status           = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
     assigned_to_user = models.ForeignKey(

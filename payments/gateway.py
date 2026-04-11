@@ -235,3 +235,29 @@ def handle_refund_processed(refund_entity):
         return True, "Refund processed."
     except PaymentTransaction.DoesNotExist:
         return False, "Transaction not found."
+    
+# ── ADD THIS FUNCTION TO payments/gateway.py ──────────────────────────
+#
+# Place after the verify_webhook_signature function
+
+def verify_payment_signature(razorpay_order_id, razorpay_payment_id, signature):
+    """
+    Verify Razorpay payment signature from client-side callback.
+    Used to confirm payment after razorpay_flutter SDK returns success.
+
+    The signature is HMAC-SHA256 of:
+        razorpay_order_id + "|" + razorpay_payment_id
+    using RAZORPAY_KEY_SECRET as the key.
+
+    Returns True if valid, False if invalid.
+    """
+    try:
+        message  = f"{razorpay_order_id}|{razorpay_payment_id}"
+        expected = hmac.new(
+            settings.RAZORPAY_KEY_SECRET.encode(),
+            message.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature)
+    except Exception:
+        return False

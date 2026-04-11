@@ -1,3 +1,5 @@
+# orders/admin.py
+
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -7,6 +9,7 @@ from django.utils.safestring import mark_safe
 from django.utils import timezone
 from django.http import HttpResponse
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from .models import Order, OrderStageHistory, OrderImage, OrderNote
 
 
@@ -34,6 +37,7 @@ def export_orders_to_excel(queryset, filename):
         "Fit Sizes", "Total Qty", "MOQ",
         "Payment Amount", "Customization Notes",
         "Message", "Fabric Type",
+        "Swatch Required",                          # ← NEW
         "Admin Notes", "Enquiry No.", "Created At",
     ]
 
@@ -64,6 +68,7 @@ def export_orders_to_excel(queryset, filename):
             order.customization_notes or "—",
             order.message or "—",
             order.fabric_type or "—",
+            "Yes" if order.swatch_required else "No",   # ← NEW
             order.notes or "—",
             order.enquiry.enquiry_number if order.enquiry else "—",
             order.created_at.strftime("%d %b %Y %H:%M"),
@@ -85,6 +90,8 @@ def export_orders_to_excel(queryset, filename):
     wb.save(response)
     return response
 
+
+# ── INLINES ────────────────────────────────────────────────────────────
 
 class OrderNoteInline(admin.TabularInline):
     model           = OrderNote
@@ -128,14 +135,22 @@ class OrderImageInline(admin.TabularInline):
     image_preview.short_description = "Preview"
 
 
+# ── ORDER ADMIN ────────────────────────────────────────────────────────
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display  = [
         "order_number", "order_type", "customer_user",
-        "status", "total_quantity", "for_category",
+        "assigned_to", "status", "swatch_badge",
+        "total_quantity", "for_category",
         "garment_type", "payment_status_display", "created_at",
     ]
-    list_filter   = ["order_type", "status", "for_category", "fabric_type"]
+    list_filter   = [
+        "order_type", "status",
+        "swatch_required",
+        "for_category", "fabric_type",
+        "assigned_to",
+    ]
     search_fields = ["order_number", "customer_user__email", "style_name"]
     ordering      = ["-created_at"]
     inlines       = [OrderNoteInline, OrderStageHistoryInline, OrderImageInline]
@@ -144,6 +159,14 @@ class OrderAdmin(admin.ModelAdmin):
         "export_wl_as_excel",
         "export_pl_as_excel",
         "export_fabrics_as_excel",
+        # Swatch actions (fabrics only)
+        "mark_as_swatch_sent",
+        "mark_as_swatch_received",
+        "mark_as_swatch_approved",
+        "mark_as_swatch_rework",
+        # Standard actions
+        "mark_as_procurement",
+        "mark_as_packing",
         "mark_as_payment_pending",
         "mark_as_payment_done",
         "mark_as_dispatch",
@@ -151,7 +174,6 @@ class OrderAdmin(admin.ModelAdmin):
     ]
 
     readonly_fields = [
-        # Auto-filled at creation — never editable
         "id", "order_number", "order_type",
         "customer_user", "created_by_user",
         "white_label_catalogue", "fabric_catalogue",
@@ -160,7 +182,7 @@ class OrderAdmin(admin.ModelAdmin):
         "fit_sizes", "size_breakdown",
         "total_quantity", "moq",
         "style_name", "message",
-        # Payment — read only display
+        "swatch_required",                             # ← read-only (set by customer)
         "payment_info",
         "created_at", "updated_at",
     ]
@@ -190,10 +212,29 @@ class OrderAdmin(admin.ModelAdmin):
         ("Customer Notes", {
             "fields": ("customization_notes", "message"),
         }),
-        # ── Admin editable ─────────────────────────────────────────── #
+        # ── Swatch (fabrics orders only) ──────────────────────────── #
+        ("Swatch", {
+            "fields": ("swatch_required",),
+            "description": (
+                "Set by the customer when placing the order. "
+                "If Yes → use the swatch actions below to update stage: "
+                "Swatch Sent → Swatch Received → Swatch Approved → Procurement. "
+                "If No → go straight to Procurement."
+            ),
+        }),
+        # ── Admin editable ────────────────────────────────────────── #
+        ("Assignment", {
+            "fields": ("assigned_to",),
+            "description": "Assign a staff or admin member responsible for this order.",
+        }),
         ("Status", {
             "fields": ("status",),
-            "description": "Update order stage here. Stage history is tracked automatically.",
+            "description": (
+                "Update order stage here. "
+                "Stage history is tracked automatically on save. "
+                "For fabrics with swatch: use Swatch Sent, Swatch Received, "
+                "Swatch Approved stages before Procurement."
+            ),
         }),
         ("Payment", {
             "fields": ("payment_amount", "payment_info"),
@@ -214,7 +255,22 @@ class OrderAdmin(admin.ModelAdmin):
         }),
     )
 
-    # ── Custom display fields ──────────────────────────────────────── #
+    # ── Custom list display columns ────────────────────────────────── #
+
+    def swatch_badge(self, obj):
+        """Shows a badge in list view for fabric orders with swatch."""
+        if obj.order_type != "fabrics":
+            return mark_safe('<span style="color:#ccc;">—</span>')
+        if obj.swatch_required:
+            return mark_safe(
+                '<span style="background:#f0e6ff;color:#5b21b6;padding:2px 8px;'
+                'border-radius:10px;font-size:11px;font-weight:600;">🧵 Swatch</span>'
+            )
+        return mark_safe(
+            '<span style="background:#f0f0f0;color:#666;padding:2px 8px;'
+            'border-radius:10px;font-size:11px;">Direct</span>'
+        )
+    swatch_badge.short_description = "Swatch"
 
     def payment_status_display(self, obj):
         from payments.models import PaymentTransaction, PaymentStatus
@@ -258,7 +314,6 @@ class OrderAdmin(admin.ModelAdmin):
             "refunded": "#8e44ad",
         }
         color = color_map.get(tx.status, "#999")
-
         html = f"""
         <table style="border-collapse:collapse;font-size:13px;">
           <tr><td style="padding:3px 10px 3px 0;color:#666;">Status</td>
@@ -278,7 +333,96 @@ class OrderAdmin(admin.ModelAdmin):
 
     # ── Save logic ─────────────────────────────────────────────────── #
 
-    # ── Actions ────────────────────────────────────────────────────── #
+    def save_model(self, request, obj, form, change):
+        if change:
+            old = Order.objects.get(pk=obj.pk)
+
+            # Track status change in stage history
+            if old.status != obj.status:
+                OrderStageHistory.objects.create(
+                    order      = obj,
+                    stage      = obj.status,
+                    changed_by = request.user,
+                    notes      = "Updated via admin panel.",
+                )
+                # Send push notification to customer
+                try:
+                    from notifications.service import send_order_stage_notification
+                    send_order_stage_notification(obj, obj.status)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(
+                        f"Notification failed for {obj.order_number}: {e}"
+                    )
+
+            # Notify staff when assigned_to changes
+            old_assignee = old.assigned_to_id
+            new_assignee = obj.assigned_to
+            if new_assignee and old_assignee != new_assignee.pk:
+                try:
+                    from notifications.service import send_order_assigned_notification
+                    send_order_assigned_notification(
+                        order            = obj,
+                        assigned_to_user = new_assignee,
+                        assigned_by_user = request.user,
+                    )
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(
+                        f"Assignment notification failed for {obj.order_number}: {e}"
+                    )
+
+            # Auto-create Razorpay payment when status → payment_pending
+            status_just_changed = (old.status != "payment_pending" and obj.status == "payment_pending")
+            amount_just_set     = (obj.status == "payment_pending" and obj.payment_amount and not old.payment_amount)
+
+            if (status_just_changed or amount_just_set) and obj.payment_amount:
+                self._create_razorpay_payment(request, obj)
+
+        super().save_model(request, obj, form, change)
+
+    def _create_razorpay_payment(self, request, order):
+        import traceback
+        try:
+            from payments import gateway
+            from payments.models import PaymentTransaction, PaymentStatus
+            from django.contrib.contenttypes.models import ContentType
+
+            messages.info(
+                request,
+                f"🔄 Creating payment for {order.order_number} | Amount: ₹{order.payment_amount}"
+            )
+
+            ct = ContentType.objects.get_for_model(order)
+            existing = PaymentTransaction.objects.filter(
+                content_type=ct,
+                object_id=order.id,
+                status=PaymentStatus.PENDING,
+            )
+            if existing.exists():
+                messages.warning(
+                    request,
+                    f"⚠️ Pending payment already exists: {existing.first().razorpay_order_id}"
+                )
+                return
+
+            result = gateway.create_payment(
+                content_object = order,
+                amount         = order.payment_amount,
+                payment_type   = "order",
+                paid_by        = order.customer_user,
+                notes          = f"Payment for {order.order_number}",
+            )
+            messages.success(
+                request,
+                f"✅ Razorpay payment created. "
+                f"Order ID: {result['razorpay_order_id']} | Amount: ₹{order.payment_amount}"
+            )
+        except Exception as e:
+            messages.error(request, f"❌ Payment error: {str(e)}")
+            messages.error(request, f"🔍 Traceback: {traceback.format_exc()[:600]}")
+
+    # ── Bulk actions ───────────────────────────────────────────────── #
 
     @admin.action(description="📥 Export selected orders to Excel")
     def export_all_as_excel(self, request, queryset):
@@ -286,7 +430,8 @@ class OrderAdmin(admin.ModelAdmin):
             "customer_user", "created_by_user",
             "white_label_catalogue", "fabric_catalogue", "enquiry",
         )
-        return export_orders_to_excel(qs, f"orders_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+        return export_orders_to_excel(
+            qs, f"orders_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
     @admin.action(description="📥 Export White Label orders to Excel")
     def export_wl_as_excel(self, request, queryset):
@@ -307,108 +452,109 @@ class OrderAdmin(admin.ModelAdmin):
         qs = queryset.filter(order_type="fabrics").select_related(
             "customer_user", "created_by_user", "fabric_catalogue", "enquiry",
         )
-        return export_orders_to_excel(qs, f"orders_fabrics_{timezone.now().strftime('%Y%m%d')}.xlsx")
+        return export_orders_to_excel(
+            qs, f"orders_fabrics_{timezone.now().strftime('%Y%m%d')}.xlsx")
 
-    @admin.action(description="💳 Mark selected orders as Payment Pending")
+    # ── Swatch stage actions (fabrics orders) ──────────────────────── #
+
+    @admin.action(description="🧵 [Fabrics] Mark as Swatch Sent")
+    def mark_as_swatch_sent(self, request, queryset):
+        self._bulk_update_status(request, queryset, "swatch_sent",
+                                  require_swatch=True)
+
+    @admin.action(description="📬 [Fabrics] Mark as Swatch Received")
+    def mark_as_swatch_received(self, request, queryset):
+        self._bulk_update_status(request, queryset, "swatch_received",
+                                  require_swatch=True)
+
+    @admin.action(description="✅ [Fabrics] Mark as Swatch Approved")
+    def mark_as_swatch_approved(self, request, queryset):
+        self._bulk_update_status(request, queryset, "swatch_approved",
+                                  require_swatch=True)
+
+    @admin.action(description="🔁 [Fabrics] Mark as Swatch Rework")
+    def mark_as_swatch_rework(self, request, queryset):
+        self._bulk_update_status(request, queryset, "swatch_rework",
+                                  require_swatch=True)
+
+    # ── Standard stage actions ─────────────────────────────────────── #
+
+    @admin.action(description="🏭 Mark selected as Procurement")
+    def mark_as_procurement(self, request, queryset):
+        self._bulk_update_status(request, queryset, "procurement")
+
+    @admin.action(description="📦 Mark selected as Packing")
+    def mark_as_packing(self, request, queryset):
+        self._bulk_update_status(request, queryset, "packing")
+
+    @admin.action(description="💳 Mark selected as Payment Pending")
     def mark_as_payment_pending(self, request, queryset):
         self._bulk_update_status(request, queryset, "payment_pending")
 
-    @admin.action(description="✅ Mark selected orders as Payment Done")
+    @admin.action(description="✅ Mark selected as Payment Done")
     def mark_as_payment_done(self, request, queryset):
         self._bulk_update_status(request, queryset, "payment_done")
 
-    @admin.action(description="🚚 Mark selected orders as Dispatched")
+    @admin.action(description="🚚 Mark selected as Dispatched")
     def mark_as_dispatch(self, request, queryset):
         self._bulk_update_status(request, queryset, "dispatch")
 
-    @admin.action(description="📦 Mark selected orders as Delivered")
+    @admin.action(description="🎉 Mark selected as Delivered")
     def mark_as_delivered(self, request, queryset):
         self._bulk_update_status(request, queryset, "delivered")
 
-    def _bulk_update_status(self, request, queryset, new_status):
-        from .models import OrderStageHistory
-        updated = 0
+    def _bulk_update_status(self, request, queryset, new_status,
+                             require_swatch=False):
+        updated  = 0
+        skipped  = 0
         for order in queryset:
-            if order.status != new_status:
-                order.status = new_status
-                order.save(update_fields=["status", "updated_at"])
-                OrderStageHistory.objects.create(
-                    order      = order,
-                    stage      = new_status,
-                    changed_by = request.user,
-                    notes      = f"Bulk updated via admin panel.",
+            # Skip if swatch action applied to non-swatch order
+            if require_swatch and not order.swatch_required:
+                skipped += 1
+                continue
+            # Skip if status already set
+            if order.status == new_status:
+                continue
+            order.status = new_status
+            order.save(update_fields=["status", "updated_at"])
+            OrderStageHistory.objects.create(
+                order      = order,
+                stage      = new_status,
+                changed_by = request.user,
+                notes      = "Bulk updated via admin panel.",
+            )
+            # Send push notification to customer
+            try:
+                from notifications.service import send_order_stage_notification
+                send_order_stage_notification(order, new_status)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(
+                    f"Notification failed for {order.order_number}: {e}"
                 )
-                updated += 1
+            updated += 1
+
+        label = new_status.replace("_", " ").title()
         self.message_user(
             request,
-            f"{updated} order(s) updated to '{new_status.replace('_', ' ').title()}'."
+            f"{updated} order(s) updated to '{label}'."
+            + (f" {skipped} skipped (swatch not requested)." if skipped else ""),
         )
 
-    def save_model(self, request, obj, form, change):
-        if change:
-            old = Order.objects.get(pk=obj.pk)
-
-            # Track status change
-            if old.status != obj.status:
-                OrderStageHistory.objects.create(
-                    order      = obj,
-                    stage      = obj.status,
-                    changed_by = request.user,
-                    notes      = "Updated via admin panel.",
-                )
-
-            # Auto-create Razorpay payment when:
-            # 1. Status just changed to payment_pending, OR
-            # 2. Amount was just set while already at payment_pending
-            status_just_changed = (old.status != "payment_pending" and obj.status == "payment_pending")
-            amount_just_set     = (obj.status == "payment_pending" and obj.payment_amount and not old.payment_amount)
-
-            if (status_just_changed or amount_just_set) and obj.payment_amount:
-                self._create_razorpay_payment(request, obj)
-
-        super().save_model(request, obj, form, change)
-
-    def _create_razorpay_payment(self, request, order):
-        """Auto-create Razorpay payment when admin sets payment_pending."""
-        import traceback
-        try:
-            from payments import gateway
-            from payments.models import PaymentTransaction, PaymentStatus
-            from django.contrib.contenttypes.models import ContentType
-
-            # Debug info
-            messages.info(request, f"🔄 Creating payment for {order.order_number} | Amount: ₹{order.payment_amount}")
-
-            ct = ContentType.objects.get_for_model(order)
-
-            # Don't create duplicate
-            existing = PaymentTransaction.objects.filter(
-                content_type=ct,
-                object_id=order.id,
-                status=PaymentStatus.PENDING,
-            )
-            if existing.exists():
-                messages.warning(request, f"⚠️ Pending payment already exists: {existing.first().razorpay_order_id}")
-                return
-
-            result = gateway.create_payment(
-                content_object = order,
-                amount         = order.payment_amount,
-                payment_type   = "order",
-                paid_by        = order.customer_user,
-                notes          = f"Payment for {order.order_number}",
-            )
-            messages.success(
-                request,
-                f"✅ Razorpay payment created. Order ID: {result['razorpay_order_id']} | Amount: ₹{order.payment_amount}"
-            )
-        except Exception as e:
-            messages.error(request, f"❌ Payment error: {str(e)}")
-            messages.error(request, f"🔍 Traceback: {traceback.format_exc()[:600]}")
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        User = get_user_model()
+        if "assigned_to" in form.base_fields:
+            form.base_fields["assigned_to"].queryset = User.objects.filter(
+                role__in=["admin", "staff"], is_active=True
+            ).order_by("email")
+        return form
 
     def has_add_permission(self, request):
         return False
 
+
+# ── STAGE HISTORY ADMIN ────────────────────────────────────────────────
 
 @admin.register(OrderStageHistory)
 class OrderStageHistoryAdmin(admin.ModelAdmin):
@@ -424,6 +570,8 @@ class OrderStageHistoryAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
+
+# ── ORDER IMAGE ADMIN ──────────────────────────────────────────────────
 
 @admin.register(OrderImage)
 class OrderImageAdmin(admin.ModelAdmin):

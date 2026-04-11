@@ -23,18 +23,42 @@ class EnquiryImageSerializer(serializers.ModelSerializer):
 # ── PUBLIC: CREATE ENQUIRY ─────────────────────────────────────────────
 
 class EnquiryCreateSerializer(serializers.ModelSerializer):
+    """
+    Fields matching the Contact Us screen:
+      Required : order_type, full_name, brand_name, email, phone, message
+      Optional : for_category, source_page, wl_prototype, fabric,
+                 company_age_years, total_pieces_required, annual_revenue
+    """
 
     class Meta:
         model  = Enquiry
         fields = [
-            'order_type', 'full_name', 'phone', 'email',
-            'brand_name', 'company_age_years', 'total_pieces_required',
-            'annual_revenue', 'message', 'source_page',
-            'wl_prototype', 'fabric',
+            # ── Required (shown on screen) ──────────────────────────── #
+            'order_type',
+            'full_name',
+            'brand_name',
+            'email',
+            'phone',
+            'message',
+            # ── Optional (shown on screen) ──────────────────────────── #
+            'for_category',
+            # ── Optional (internal / context-driven) ────────────────── #
+            'source_page',
+            'wl_prototype',
+            'fabric',
+            'company_age_years',
+            'total_pieces_required',
+            'annual_revenue',
         ]
-
-    def validate(self, attrs):
-        return attrs
+        extra_kwargs = {
+            'for_category':          {'required': False, 'allow_null': True},
+            'source_page':           {'required': False, 'allow_null': True},
+            'wl_prototype':          {'required': False, 'allow_null': True},
+            'fabric':                {'required': False, 'allow_null': True},
+            'company_age_years':     {'required': False, 'allow_null': True},
+            'total_pieces_required': {'required': False, 'allow_null': True},
+            'annual_revenue':        {'required': False, 'allow_null': True},
+        }
 
     def create(self, validated_data):
         images_data = self.context.get('images', [])
@@ -63,8 +87,7 @@ class EnquiryResponseSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'enquiry_number', 'order_type',
             'full_name', 'phone', 'email', 'brand_name',
-            'company_age_years', 'total_pieces_required',
-            'annual_revenue', 'message', 'status',
+            'for_category', 'message', 'status',
             'source_page', 'wl_prototype', 'fabric',
             'images', 'created_at',
         ]
@@ -90,7 +113,7 @@ class EnquiryListSerializer(serializers.ModelSerializer):
         model  = Enquiry
         fields = [
             'id', 'enquiry_number', 'order_type', 'full_name',
-            'phone', 'email', 'brand_name',
+            'phone', 'email', 'brand_name', 'for_category',
             'total_pieces_required', 'status', 'is_viewed',
             'assigned_to', 'source_page', 'created_at',
         ]
@@ -114,7 +137,7 @@ class EnquiryDetailSerializer(serializers.ModelSerializer):
         model  = Enquiry
         fields = [
             'id', 'enquiry_number', 'order_type',
-            'full_name', 'phone', 'email', 'brand_name',
+            'full_name', 'phone', 'email', 'brand_name', 'for_category',
             'company_age_years', 'total_pieces_required', 'annual_revenue',
             'message', 'status', 'is_viewed', 'viewed_at',
             'admin_notes', 'assigned_to',

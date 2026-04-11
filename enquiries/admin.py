@@ -27,7 +27,7 @@ def export_enquiries_to_excel(queryset, filename):
 
     headers = [
         "Enquiry No.", "Order Type", "Status", "Source Page",
-        "Full Name", "Phone", "Email", "Brand Name",
+        "Full Name", "Phone", "Email", "Brand Name", "Category",
         "Company Age (Yrs)", "Total Pieces Req.", "Annual Revenue",
         "Message", "WL Prototype", "Fabric",
         "Assigned To", "Is Viewed", "Viewed At",
@@ -45,6 +45,7 @@ def export_enquiries_to_excel(queryset, filename):
 
     # Data rows
     for row_num, enq in enumerate(queryset, start=2):
+        category_map = {"women": "Women's Wear", "men": "Men's Wear", "kids": "Kids' Wear"}
         ws.append([
             enq.enquiry_number,
             enq.get_order_type_display(),
@@ -54,6 +55,7 @@ def export_enquiries_to_excel(queryset, filename):
             enq.phone,
             enq.email,
             enq.brand_name,
+            category_map.get(enq.for_category, "—") if enq.for_category else "—",
             enq.company_age_years or "—",
             enq.total_pieces_required or "—",
             enq.annual_revenue or "—",
@@ -110,10 +112,10 @@ class EnquiryImageInline(admin.TabularInline):
 class EnquiryAdmin(admin.ModelAdmin):
     list_display = [
         'enquiry_number', 'order_type', 'full_name', 'phone',
-        'email', 'brand_name', 'status', 'unread_badge',
+        'email', 'brand_name', 'for_category', 'status', 'unread_badge',
         'assigned_to_user', 'source_page', 'created_at',
     ]
-    list_filter     = ['order_type', 'status', 'source_page', 'is_viewed', 'created_at']
+    list_filter     = ['order_type', 'status', 'for_category', 'source_page', 'is_viewed', 'created_at']
     search_fields   = ['enquiry_number', 'full_name', 'phone', 'email', 'brand_name']
     readonly_fields = ['id', 'enquiry_number', 'created_at', 'updated_at', 'viewed_at']
     ordering        = ['-created_at']
@@ -135,7 +137,7 @@ class EnquiryAdmin(admin.ModelAdmin):
                        "company_age_years", "annual_revenue"),
         }),
         ("Order Details", {
-            "fields": ("total_pieces_required", "message"),
+            "fields": ("for_category", "total_pieces_required", "message"),
         }),
         ("References", {
             "fields": ("wl_prototype", "fabric", "customer"),

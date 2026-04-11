@@ -152,3 +152,21 @@ class CustomerUpdateSerializer(serializers.ModelSerializer):
             "profile_picture",
         ]
         extra_kwargs = {f: {"required": False} for f in fields}
+
+
+class CustomerPickerSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for staff to search and select a customer
+    when placing an order on their behalf.
+    """
+    user_id   = serializers.UUIDField(source="user.id",       read_only=True)
+    email     = serializers.EmailField(source="user.email",   read_only=True)
+    is_active = serializers.BooleanField(source="user.is_active", read_only=True)
+
+    class Meta:
+        model  = Customer
+        fields = [
+            "user_id", "email",
+            "brand_name", "contact_name", "phone",
+            "city", "state", "is_active",
+        ]

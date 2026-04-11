@@ -1,3 +1,5 @@
+# orders/models.py
+
 import uuid
 from django.db import models
 from django.conf import settings
@@ -52,11 +54,14 @@ WHITE_LABEL_STAGES = [
     ("delivered",       "Delivered"),
 ]
 
-FABRICS_STAGES = [
+# Fabrics — with swatch (when customer requests swatch before bulk)
+FABRICS_STAGES_WITH_SWATCH = [
     ("order_placed",    "Order Placed"),
-    ("production",      "Production"),
+    ("swatch_sent",     "Swatch Sent"),
+    ("swatch_received", "Swatch Received"),
+    ("swatch_approved", "Swatch Approved"),
+    ("swatch_rework",   "Swatch Rework"),
     ("procurement",     "Procurement"),
-    ("cutting",         "Cutting"),
     ("packing",         "Packing"),
     ("payment_pending", "Payment Pending"),
     ("payment_done",    "Payment Done"),
@@ -64,7 +69,20 @@ FABRICS_STAGES = [
     ("delivered",       "Delivered"),
 ]
 
-# Combined for model field choices
+# Fabrics — without swatch (direct bulk order)
+FABRICS_STAGES_NO_SWATCH = [
+    ("order_placed",    "Order Placed"),
+    ("procurement",     "Procurement"),
+    ("packing",         "Packing"),
+    ("payment_pending", "Payment Pending"),
+    ("payment_done",    "Payment Done"),
+    ("dispatch",        "Dispatch"),
+    ("delivered",       "Delivered"),
+]
+
+# Combined for model field choices — include all possible stages
+FABRICS_STAGES = FABRICS_STAGES_WITH_SWATCH  # superset for choices
+
 ALL_STATUS_CHOICES = list({s[0]: s for s in
     PRIVATE_LABEL_STAGES + WHITE_LABEL_STAGES + FABRICS_STAGES
 }.values())
@@ -121,27 +139,24 @@ class Order(models.Model):
     style_name = models.CharField(max_length=200, null=True, blank=True,
                                    help_text="Private Label only")
 
-    # Private Label — up to 3 fabric selections from fabrics catalogue
+    # Private Label — up to 3 fabric selections
     pl_fabric_1 = models.ForeignKey(
         "catalogue.FabricsCatalogue",
         null=True, blank=True,
         on_delete=models.SET_NULL,
         related_name="pl_orders_fabric_1",
-        help_text="PL fabric choice 1",
     )
     pl_fabric_2 = models.ForeignKey(
         "catalogue.FabricsCatalogue",
         null=True, blank=True,
         on_delete=models.SET_NULL,
         related_name="pl_orders_fabric_2",
-        help_text="PL fabric choice 2",
     )
     pl_fabric_3 = models.ForeignKey(
         "catalogue.FabricsCatalogue",
         null=True, blank=True,
         on_delete=models.SET_NULL,
         related_name="pl_orders_fabric_3",
-        help_text="PL fabric choice 3",
     )
 
     # PL & WL fields
@@ -151,8 +166,7 @@ class Order(models.Model):
                                      help_text="Kurti / Frock / Maxi etc.")
 
     # Sizes
-    fit_sizes = models.CharField(max_length=100, null=True, blank=True,
-                                  help_text="Selected size names e.g. S,M,L,XL")
+    fit_sizes = models.CharField(max_length=100, null=True, blank=True)
     size_breakdown = models.JSONField(
         null=True, blank=True,
         help_text='e.g. [{"size":"S","quantity":24},{"size":"M","quantity":24}]',
@@ -164,14 +178,19 @@ class Order(models.Model):
                                           help_text="MOQ snapshot at time of order")
 
     # WL specific
-    customization_notes = models.TextField(null=True, blank=True,
-                                            help_text="White Label customisation notes")
+    customization_notes = models.TextField(null=True, blank=True)
 
     # Fabrics specific
     message      = models.TextField(null=True, blank=True,
                                      help_text="Fabrics order message")
     fabric_type  = models.CharField(max_length=10, choices=FabricType.choices,
                                      null=True, blank=True)
+
+    # ── NEW: Swatch required for fabric orders ──────────────────────────
+    swatch_required = models.BooleanField(
+        default=False,
+        help_text="Customer requested a fabric swatch before placing bulk order.",
+    )
 
     # Status
     status = models.CharField(
@@ -180,16 +199,24 @@ class Order(models.Model):
         default="order_placed",
     )
 
+    # Staff assignment
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_orders",
+        help_text="Staff member responsible for this order",
+        limit_choices_to={"role__in": ["admin", "staff"]},
+    )
+
     # Admin notes
     notes = models.TextField(null=True, blank=True,
                               help_text="Internal admin notes")
 
-    # Payment amount — set by admin before moving to payment_pending
+    # Payment amount
     payment_amount = models.DecimalField(
         max_digits=10, decimal_places=2,
         null=True, blank=True,
-        help_text="Set this before changing status to payment_pending. "
-                  "Razorpay payment will be auto-created on save.",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -201,8 +228,8 @@ class Order(models.Model):
         verbose_name = "Order"
         verbose_name_plural = "Orders"
         indexes = [
-            models.Index(fields=["order_type"], name="idx_order_type"),
-            models.Index(fields=["status"],     name="idx_order_status"),
+            models.Index(fields=["order_type"],    name="idx_order_type"),
+            models.Index(fields=["status"],        name="idx_order_status"),
             models.Index(fields=["customer_user"], name="idx_order_customer"),
         ]
 
@@ -227,12 +254,19 @@ class Order(models.Model):
 
     @property
     def valid_stages(self):
-        """Returns the valid stages for this order type."""
+        """
+        Returns the ordered list of (value, label) stages for this order.
+        Fabric orders return different stages depending on swatch_required.
+        """
         if self.order_type == OrderType.PRIVATE_LABEL:
             return PRIVATE_LABEL_STAGES
         elif self.order_type == OrderType.WHITE_LABEL:
             return WHITE_LABEL_STAGES
-        return FABRICS_STAGES
+        elif self.order_type == OrderType.FABRICS:
+            if self.swatch_required:
+                return FABRICS_STAGES_WITH_SWATCH
+            return FABRICS_STAGES_NO_SWATCH
+        return FABRICS_STAGES_NO_SWATCH
 
 
 # ── ORDER STAGE HISTORY ────────────────────────────────────────────────
@@ -248,8 +282,7 @@ class OrderStageHistory(models.Model):
         on_delete=models.SET_NULL,
         related_name="order_stage_changes",
     )
-    notes      = models.TextField(null=True, blank=True,
-                                   help_text="Optional note for this stage")
+    notes      = models.TextField(null=True, blank=True)
     changed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -268,7 +301,6 @@ class OrderImage(models.Model):
     id    = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.ForeignKey(Order, on_delete=models.CASCADE,
                                related_name="images")
-
     image       = models.ImageField(upload_to="orders/images/", null=True, blank=True)
     file_name   = models.CharField(max_length=200)
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -279,21 +311,27 @@ class OrderImage(models.Model):
 
     def __str__(self):
         return f"{self.file_name} — {self.order.order_number}"
-    
+
+
 # ── ORDER NOTES ────────────────────────────────────────────────────────
- 
+
 class OrderNote(models.Model):
-    id    = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="order_notes")
-    note     = models.TextField(help_text="Note content")
-    added_by = models.ForeignKey(settings.AUTH_USER_MODEL,null=True, blank=True,on_delete=models.SET_NULL,related_name="order_notes",help_text="User who added the note",)
+    id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order      = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="order_notes")
+    note       = models.TextField(help_text="Note content")
+    added_by   = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_notes",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
- 
+
     class Meta:
         db_table     = "order_notes"
         ordering     = ["-created_at"]
         verbose_name = "Order Note"
         verbose_name_plural = "Order Notes"
- 
+
     def __str__(self):
         return f"Note on {self.order.order_number}"

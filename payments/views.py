@@ -183,3 +183,76 @@ class PaymentTransactionListView(APIView):
             transactions, many=True, context={"request": request}
         )
         return Response(serializer.data)
+    
+# ── ADD THIS TO payments/views.py ─────────────────────────────────────
+#
+# Also add to payments/urls.py:
+#   path("payments/orders/<uuid:order_id>/verify/", PaymentVerifyView.as_view(), name="order-payment-verify"),
+
+class PaymentVerifyView(APIView):
+    """
+    POST /api/payments/orders/<uuid>/verify/
+    Called by Flutter after Razorpay payment success.
+    Verifies payment with Razorpay and updates order status to payment_done.
+
+    Input:  {
+        "razorpay_payment_id": "pay_xxxx",
+        "razorpay_order_id":   "order_xxxx",
+        "razorpay_signature":  "signature_xxxx"
+    }
+    Output: { "status": "ok", "message": "Payment verified." }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        from orders.models import Order
+
+        # Get the order
+        try:
+            if request.user.role == "customer":
+                order = Order.objects.get(id=order_id, customer_user=request.user)
+            else:
+                order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Get fields from request
+        payment_id = request.data.get("razorpay_payment_id")
+        rzp_order_id = request.data.get("razorpay_order_id")
+        signature = request.data.get("razorpay_signature")
+
+        if not all([payment_id, rzp_order_id, signature]):
+            return Response(
+                {"error": "razorpay_payment_id, razorpay_order_id and razorpay_signature are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Verify signature
+        if not gateway.verify_payment_signature(rzp_order_id, payment_id, signature):
+            return Response(
+                {"error": "Invalid payment signature. Payment could not be verified."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Find the transaction
+        try:
+            transaction = PaymentTransaction.objects.get(razorpay_order_id=rzp_order_id)
+        except PaymentTransaction.DoesNotExist:
+            return Response({"error": "Transaction not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Already paid — idempotent
+        if transaction.status == PaymentStatus.PAID:
+            return Response({"status": "ok", "message": "Payment already verified."})
+
+        # Update transaction
+        from django.utils import timezone
+        transaction.status             = PaymentStatus.PAID
+        transaction.payment_reference  = payment_id
+        transaction.razorpay_signature = signature
+        transaction.paid_at            = timezone.now()
+        transaction.save()
+
+        # Update order status to payment_done
+        gateway._handle_order_payment_success(transaction)
+
+        return Response({"status": "ok", "message": "Payment verified successfully."})

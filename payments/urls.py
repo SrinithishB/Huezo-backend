@@ -4,6 +4,7 @@ from .views import (
     PaymentWebhookView,
     PaymentStatusView,
     PaymentTransactionListView,
+    PaymentVerifyView,
 )
 
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
 
     # Admin
     path("payments/transactions/",                   PaymentTransactionListView.as_view(),  name="payment-transactions"),
+    path("payments/orders/<uuid:order_id>/verify/", PaymentVerifyView.as_view(), name="order-payment-verify"),
 ]
