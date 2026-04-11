@@ -195,10 +195,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL  = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'          # collectstatic output for production
-STATICFILES_STORAGE = (
-    "whitenoise.storage.CompressedManifestStaticFilesStorage"
-)
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 CLOUDINARY_STORAGE = {
     "CLOUD_NAME": env("CLOUDINARY_CLOUD_NAME", default=""),
@@ -206,13 +203,23 @@ CLOUDINARY_STORAGE = {
     "API_SECRET": env("CLOUDINARY_API_SECRET", default=""),
 }
 
-MEDIA_URL = "/media/"
-DEFAULT_FILE_STORAGE = (
+MEDIA_URL  = "/media/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # used only in local dev
+
+_media_storage = (
     "cloudinary_storage.storage.MediaCloudinaryStorage"
     if CLOUDINARY_STORAGE["CLOUD_NAME"]
     else "django.core.files.storage.FileSystemStorage"
 )
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # used only in local dev
+
+STORAGES = {
+    "default": {
+        "BACKEND": _media_storage,
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 FIREBASE_CREDENTIALS_PATH = BASE_DIR / "firebase-credentials.json"
 
