@@ -208,7 +208,6 @@ class ForgotPasswordRequestView(APIView):
 
     def post(self, request):
         from django.conf import settings as django_settings
-        from django.core.mail import send_mail
 
         email = request.data.get("email", "").strip().lower()
         if not email:
@@ -237,20 +236,22 @@ class ForgotPasswordRequestView(APIView):
         )
 
         try:
-            send_mail(
-                subject = "Your Huezo Password Reset OTP",
-                message = (
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail
+            expiry  = getattr(django_settings, "OTP_EXPIRY_MINUTES", 10)
+            message = Mail(
+                from_email    = django_settings.DEFAULT_FROM_EMAIL,
+                to_emails     = user.email,
+                subject       = "Your Huezo Password Reset OTP",
+                plain_text_content = (
                     f"Hi {user.email},\n\n"
                     f"Your OTP for password reset is: {otp}\n\n"
-                    f"This OTP is valid for "
-                    f"{getattr(django_settings, 'OTP_EXPIRY_MINUTES', 10)} minutes.\n\n"
+                    f"This OTP is valid for {expiry} minutes.\n\n"
                     f"If you did not request this, please ignore this email.\n\n"
                     f"— Huezo Team"
                 ),
-                from_email     = django_settings.DEFAULT_FROM_EMAIL,
-                recipient_list = [user.email],
-                fail_silently  = False,
             )
+            SendGridAPIClient(django_settings.SENDGRID_API_KEY).send(message)
         except Exception as e:
             logger.error(f"OTP email failed for {email}: {e}")
             return Response(

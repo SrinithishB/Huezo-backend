@@ -57,7 +57,6 @@ INSTALLED_APPS = [
     'enquiries',
     'cloudinary',
     'cloudinary_storage',
-    'anymail',
 ]
 AUTH_USER_MODEL = "accounts.User"
 
@@ -237,14 +236,7 @@ if not DEBUG:
     X_FRAME_OPTIONS                = "DENY"
 
 # ── Email ──────────────────────────────────────────────────────────────
-# Local dev: console. Production: SendGrid HTTP API (not blocked by Render).
-if DEBUG:
-    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-else:
-    EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"
-    ANYMAIL = {
-        "SENDGRID_API_KEY": env("SENDGRID_API_KEY", default=""),
-    }
+SENDGRID_API_KEY   = env("SENDGRID_API_KEY", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Huezo <noreply@huezo.in>")
 
 OTP_EXPIRY_MINUTES  = 10
