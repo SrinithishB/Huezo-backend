@@ -219,6 +219,21 @@ class Order(models.Model):
         null=True, blank=True,
     )
 
+    # Invoice / GST fields
+    unit_price = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+        help_text="Rate per unit (used for invoice GST calculation)",
+    )
+    hsn_code = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="HSN / SAC code for the item",
+    )
+    gst_percentage = models.DecimalField(
+        max_digits=5, decimal_places=2, default=5.00,
+        help_text="Total GST % (split equally as CGST + SGST, e.g. 5 = 2.5+2.5)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

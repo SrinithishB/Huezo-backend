@@ -167,6 +167,19 @@ class OrderStatusUpdateView(APIView):
                 order.payment_amount = payment_amount
                 update_fields.append("payment_amount")
 
+            unit_price     = serializer.validated_data.get("unit_price")
+            hsn_code       = serializer.validated_data.get("hsn_code")
+            gst_percentage = serializer.validated_data.get("gst_percentage")
+            if unit_price is not None:
+                order.unit_price = unit_price
+                update_fields.append("unit_price")
+            if hsn_code is not None:
+                order.hsn_code = hsn_code
+                update_fields.append("hsn_code")
+            if gst_percentage is not None:
+                order.gst_percentage = gst_percentage
+                update_fields.append("gst_percentage")
+
             order.save(update_fields=update_fields)
 
             OrderStageHistory.objects.create(
@@ -368,19 +381,22 @@ class OrderInvoiceView(APIView):
 
 def _generate_invoice_pdf(order, transaction, profile):
     """
-    Build a branded A4 invoice PDF using ReportLab.
-    All imports are local so this module loads fine even without reportlab.
+    Build a branded A4 TAX INVOICE PDF using ReportLab.
+    Matches reference format: logo, GST table with CGST/SGST breakdown.
     """
     from io import BytesIO
+    from decimal import Decimal, ROUND_HALF_UP
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.units import mm
     from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+    from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
     from reportlab.platypus import (
         SimpleDocTemplate, Paragraph, Spacer,
-        Table, TableStyle, HRFlowable,
+        Table, TableStyle, HRFlowable, Image,
     )
+    from django.conf import settings as django_settings
+    import os
 
     # ── Colours ────────────────────────────────────────────────────────
     C_DARK   = colors.HexColor("#1C0A0C")
@@ -391,6 +407,7 @@ def _generate_invoice_pdf(order, transaction, profile):
     C_GREEN  = colors.HexColor("#2E9E55")
     C_WHITE  = colors.white
     C_SUB    = colors.HexColor("#E5C5C8")
+    C_LIGHT  = colors.HexColor("#F9F5F2")
 
     # ── Helpers ────────────────────────────────────────────────────────
     def humanise(s):
@@ -401,76 +418,120 @@ def _generate_invoice_pdf(order, transaction, profile):
             return "—"
         try:
             from django.utils import timezone
-            return timezone.localtime(dt).strftime("%d %b %Y, %I:%M %p")
+            return timezone.localtime(dt).strftime("%d/%m/%Y")
         except Exception:
             return str(dt)
+
+    def ps(name, **kwargs):
+        return ParagraphStyle(name, **kwargs)
+
+    # ── GST Calculations ───────────────────────────────────────────────
+    qty          = Decimal(str(order.total_quantity))
+    unit_price   = Decimal(str(order.unit_price))   if order.unit_price   else Decimal("0")
+    gst_pct      = Decimal(str(order.gst_percentage)) if order.gst_percentage else Decimal("5")
+    half_gst     = gst_pct / 2
+    subtotal     = (unit_price * qty).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    cgst_amt     = (subtotal * half_gst / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    sgst_amt     = (subtotal * half_gst / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total_exact  = subtotal + cgst_amt + sgst_amt
+    total_round  = total_exact.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    rounding_adj = total_round - total_exact
 
     # ── Document setup ─────────────────────────────────────────────────
     buffer = BytesIO()
     doc    = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=20*mm, rightMargin=20*mm,
-        topMargin=20*mm,  bottomMargin=20*mm,
+        leftMargin=15*mm, rightMargin=15*mm,
+        topMargin=15*mm,  bottomMargin=15*mm,
     )
     W     = doc.width
     story = []
 
-    # ── Styles ─────────────────────────────────────────────────────────
-    def ps(name, **kwargs):
-        return ParagraphStyle(name, **kwargs)
+    s_body  = ps("body",  fontSize=9,  fontName="Helvetica",      textColor=C_DARK,  leading=13)
+    s_muted = ps("muted", fontSize=8,  fontName="Helvetica",      textColor=C_MUTED, leading=12)
+    s_bold  = ps("bold",  fontSize=9,  fontName="Helvetica-Bold", textColor=C_DARK,  leading=13)
+    s_right = ps("right", fontSize=9,  fontName="Helvetica",      textColor=C_DARK,  alignment=TA_RIGHT)
+    s_rbold = ps("rbold", fontSize=9,  fontName="Helvetica-Bold", textColor=C_DARK,  alignment=TA_RIGHT)
 
-    s_h2    = ps("h2",    fontSize=11, fontName="Helvetica-Bold",  textColor=C_DARK,  spaceAfter=4)
-    s_h3    = ps("h3",    fontSize=9,  fontName="Helvetica-Bold",  textColor=C_MUTED, spaceBefore=4, spaceAfter=2)
-    s_body  = ps("body",  fontSize=9,  fontName="Helvetica",       textColor=C_DARK,  leading=14)
-    s_muted = ps("muted", fontSize=8,  fontName="Helvetica",       textColor=C_MUTED, leading=12)
-    s_right = ps("right", fontSize=9,  fontName="Helvetica",       textColor=C_DARK,  alignment=TA_RIGHT)
-
-    def th(align=None):
-        kw = dict(fontSize=8, fontName="Helvetica-Bold", textColor=C_WHITE)
-        if align:
-            kw["alignment"] = align
-        return ps(f"th_{id(align)}", **kw)
+    def th(align=TA_LEFT):
+        return ps(f"th{align}", fontSize=8, fontName="Helvetica-Bold",
+                  textColor=C_WHITE, alignment=align)
 
     # ══════════════════════════════════════════════════════════════════
-    #  HEADER — dark band with brand + invoice number
+    #  HEADER — Logo left, TAX INVOICE right
     # ══════════════════════════════════════════════════════════════════
+    logo_path = os.path.join(django_settings.BASE_DIR, "static", "images", "logo.png")
+    if os.path.exists(logo_path):
+        logo_img = Image(logo_path, width=28*mm, height=28*mm, kind="proportional")
+        logo_cell = logo_img
+    else:
+        logo_cell = Paragraph("<b>HUEZO</b>",
+                              ps("fb", fontSize=20, fontName="Helvetica-Bold", textColor=C_BURNT))
+
     hdr = Table([[
+        logo_cell,
         Table([[
-            Paragraph("<b>HUEZO</b>",
-                      ps("br", fontSize=22, fontName="Helvetica-Bold", textColor=C_WHITE)),
-            Paragraph("Fashion Manufacturing",
-                      ps("bs", fontSize=8,  fontName="Helvetica",       textColor=C_SUB)),
-        ]], colWidths=[W * 0.5]),
-        Table([[
-            Paragraph("INVOICE",
-                      ps("it", fontSize=22, fontName="Helvetica-Bold",
-                         textColor=C_WHITE, alignment=TA_RIGHT)),
-            Paragraph(f"# {order.order_number}",
-                      ps("in", fontSize=10, fontName="Helvetica",
-                         textColor=C_SUB, alignment=TA_RIGHT)),
-        ]], colWidths=[W * 0.5]),
-    ]], colWidths=[W * 0.5, W * 0.5])
+            Paragraph("<b>TAX INVOICE</b>",
+                      ps("ti", fontSize=20, fontName="Helvetica-Bold",
+                         textColor=C_BURNT, alignment=TA_RIGHT)),
+        ]], colWidths=[W * 0.6]),
+    ]], colWidths=[W * 0.4, W * 0.6])
     hdr.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, -1), C_BURNT),
-        ("TOPPADDING",    (0, 0), (-1, -1), 14),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
-        ("LEFTPADDING",   (0, 0), (0,  -1), 16),
-        ("RIGHTPADDING",  (1, 0), (-1, -1), 16),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     story.append(hdr)
-    story.append(Spacer(1, 6*mm))
+    story.append(HRFlowable(width="100%", thickness=2, color=C_BURNT))
+    story.append(Spacer(1, 4*mm))
 
     # ══════════════════════════════════════════════════════════════════
-    #  BILLED TO  +  INVOICE DETAILS  (two columns)
+    #  COMPANY INFO + INVOICE META (two columns)
+    # ══════════════════════════════════════════════════════════════════
+    paid_at  = fmt_date(transaction.paid_at) if transaction else "—"
+    pay_ref  = (transaction.payment_reference or "—") if transaction else "—"
+
+    company_lines = [
+        Paragraph("<b>HUEZO Fashion Manufacturing</b>",
+                  ps("cn", fontSize=10, fontName="Helvetica-Bold", textColor=C_DARK)),
+        Paragraph("huezo.in  |  support@huezo.in",  s_muted),
+    ]
+
+    meta_rows = [
+        ("#",             order.order_number),
+        ("Invoice Date",  paid_at),
+        ("Terms",         "Due on Receipt"),
+        ("Due Date",      paid_at),
+        ("Place Of Supply", "Tamil Nadu (33)"),
+    ]
+    meta_tbl = Table(
+        [[Paragraph(k, s_muted), Paragraph(v, s_bold)] for k, v in meta_rows],
+        colWidths=[30*mm, W/2 - 34*mm],
+    )
+    meta_tbl.setStyle(TableStyle([
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING",    (0, 0), (-1, -1), 2),
+    ]))
+
+    info_col = Table([[p] for p in company_lines], colWidths=[W/2 - 4*mm])
+    top_row  = Table([[info_col, meta_tbl]], colWidths=[W/2, W/2])
+    top_row.setStyle(TableStyle([
+        ("VALIGN",      (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",(0, 0), (-1, -1), 0),
+    ]))
+    story.append(top_row)
+    story.append(Spacer(1, 4*mm))
+
+    # ══════════════════════════════════════════════════════════════════
+    #  BILL TO / SHIP TO
     # ══════════════════════════════════════════════════════════════════
     brand_name   = getattr(profile, "brand_name",   None) or ""
     contact_name = getattr(profile, "contact_name", None) or ""
     phone        = getattr(profile, "phone",        None) or ""
-    cust_email   = order.customer_user.email
-
-    address = ""
+    address      = ""
     if profile:
         try:
             fa = profile.full_address
@@ -478,152 +539,188 @@ def _generate_invoice_pdf(order, transaction, profile):
         except Exception:
             pass
 
-    # Left — Billed To
-    bill = [[Paragraph("<b>BILLED TO</b>", s_h3)]]
-    if brand_name:
-        bill.append([Paragraph(f"<b>{brand_name}</b>", s_h2)])
-    if contact_name:
-        bill.append([Paragraph(contact_name, s_body)])
-    bill.append([Paragraph(cust_email, s_body)])
-    if phone:
-        bill.append([Paragraph(phone, s_body)])
-    if address:
-        bill.append([Paragraph(address, s_muted)])
+    def addr_block(title):
+        rows = [[Paragraph(f"<b>{title}</b>",
+                           ps(title, fontSize=9, fontName="Helvetica-Bold", textColor=C_WHITE))]]
+        if brand_name:
+            rows.append([Paragraph(f"<b>{brand_name}</b>", s_bold)])
+        if contact_name:
+            rows.append([Paragraph(contact_name, s_body)])
+        if address:
+            rows.append([Paragraph(address, s_muted)])
+        if phone:
+            rows.append([Paragraph(phone, s_body)])
+        tbl = Table(rows, colWidths=[W/2 - 4*mm])
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0),  C_BURNT),
+            ("TOPPADDING",    (0, 0), (-1, 0),  6),
+            ("BOTTOMPADDING", (0, 0), (-1, 0),  6),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+            ("TOPPADDING",    (0, 1), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 3),
+            ("BOX",           (0, 0), (-1, -1), 0.5, C_STROKE),
+        ]))
+        return tbl
 
-    # Right — Invoice meta
-    paid_at = fmt_date(transaction.paid_at) if transaction else "—"
-    pay_ref = (transaction.payment_reference or "—") if transaction else "—"
-
-    meta_inner = Table(
-        [[Paragraph(k, s_muted), Paragraph(v, s_body)] for k, v in [
-            ("Order Number", order.order_number),
-            ("Order Type",   humanise(order.order_type)),
-            ("Payment Date", paid_at),
-            ("Payment Ref",  pay_ref),
-            ("Status",       humanise(order.status)),
-        ]],
-        colWidths=[28*mm, W/2 - 32*mm],
-    )
-    meta_inner.setStyle(TableStyle([
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("TOPPADDING",    (0, 0), (-1, -1), 3),
-        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+    addr_row = Table([[addr_block("Bill To"), addr_block("Ship To")]],
+                     colWidths=[W/2, W/2])
+    addr_row.setStyle(TableStyle([
+        ("LEFTPADDING",  (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING",  (1, 0), (1, -1),  4),
     ]))
-
-    two_col = Table([[
-        Table(bill,  colWidths=[W/2 - 6*mm]),
-        Table([[Paragraph("<b>INVOICE DETAILS</b>", s_h3)], [meta_inner]],
-              colWidths=[W/2 - 6*mm]),
-    ]], colWidths=[W/2, W/2])
-    two_col.setStyle(TableStyle([
-        ("VALIGN",      (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING",(0, 0), (-1, -1), 0),
-    ]))
-    story.append(two_col)
-    story.append(Spacer(1, 5*mm))
-    story.append(HRFlowable(width="100%", thickness=1, color=C_STROKE))
+    story.append(addr_row)
     story.append(Spacer(1, 5*mm))
 
     # ══════════════════════════════════════════════════════════════════
-    #  ORDER SUMMARY TABLE
+    #  ITEMS TABLE  with HSN / Qty / Rate / CGST / SGST / Amount
     # ══════════════════════════════════════════════════════════════════
-    story.append(Paragraph("ORDER SUMMARY", s_h3))
-    story.append(Spacer(1, 2*mm))
+    unit = "meters" if order.order_type == "fabrics" else "pcs"
 
-    unit         = "meters" if order.order_type == "fabrics" else "pcs"
-    type_label   = humanise(order.order_type)
-    detail_parts = []
-    if order.white_label_catalogue:
-        detail_parts.append(f"Prototype: {order.white_label_catalogue.prototype_code}")
-    if order.fabric_catalogue:
-        detail_parts.append(f"Fabric: {order.fabric_catalogue.fabric_name}")
-    if order.style_name:
-        detail_parts.append(f"Style: {order.style_name}")
+    # Build description string
+    desc_parts = [humanise(order.order_type)]
     if order.garment_type:
-        detail_parts.append(f"Garment: {order.garment_type}")
-    if order.for_category:
-        detail_parts.append(f"Category: {humanise(order.for_category)}")
-    detail_str = " · ".join(detail_parts) if detail_parts else type_label
-
-    rows = [[
-        Paragraph("<b>Description</b>", th()),
-        Paragraph("<b>Details</b>",     th()),
-        Paragraph("<b>Qty</b>",         th(TA_RIGHT)),
-    ], [
-        Paragraph(type_label, s_body),
-        Paragraph(detail_str, s_muted),
-        Paragraph(f"{order.total_quantity} {unit}", s_right),
-    ]]
-
-    # Size breakdown row
+        desc_parts.append(order.garment_type)
+    if order.style_name:
+        desc_parts.append(order.style_name)
+    if order.white_label_catalogue:
+        desc_parts.append(f"Prototype: {order.white_label_catalogue.prototype_code}")
+    if order.fabric_catalogue:
+        desc_parts.append(f"Fabric: {order.fabric_catalogue.fabric_name}")
     if order.size_breakdown:
         try:
             import json
             sizes = order.size_breakdown
             if isinstance(sizes, str):
                 sizes = json.loads(sizes)
-            size_str = "  ·  ".join(
-                f"{s.get('size', '?')}: {s.get('quantity', '?')}" for s in sizes
-            )
-            rows.append([
-                Paragraph("", s_body),
-                Paragraph(f"Sizes — {size_str}", s_muted),
-                Paragraph("", s_right),
-            ])
+            for sb in sizes:
+                desc_parts.append(f"as per dc: {sb.get('size','?')} - {sb.get('quantity','?')} {unit}")
         except Exception:
             pass
+    desc_str = "\n".join(desc_parts)
 
-    items_tbl = Table(rows, colWidths=[45*mm, W - 85*mm, 30*mm])
+    hsn = order.hsn_code or "—"
+
+    # Column widths: #, Description, HSN, Qty, Rate, CGST%, CGSTAmt, SGST%, SGSTAmt, Amount
+    cw = [8*mm, W-148*mm, 18*mm, 16*mm, 20*mm, 12*mm, 20*mm, 12*mm, 20*mm, 22*mm]
+
+    header_row = [
+        Paragraph("<b>#</b>",           th()),
+        Paragraph("<b>Item &amp; Description</b>", th()),
+        Paragraph("<b>HSN/SAC</b>",     th(TA_CENTER)),
+        Paragraph("<b>Qty</b>",         th(TA_RIGHT)),
+        Paragraph("<b>Rate</b>",        th(TA_RIGHT)),
+        Paragraph(f"<b>CGST%</b>",      th(TA_CENTER)),
+        Paragraph("<b>CGST Amt</b>",    th(TA_RIGHT)),
+        Paragraph(f"<b>SGST%</b>",      th(TA_CENTER)),
+        Paragraph("<b>SGST Amt</b>",    th(TA_RIGHT)),
+        Paragraph("<b>Amount</b>",      th(TA_RIGHT)),
+    ]
+
+    data_row = [
+        Paragraph("1",                                   s_body),
+        Paragraph(desc_str.replace("\n", "<br/>"),       s_muted),
+        Paragraph(hsn,                                   ps("hc", fontSize=8, fontName="Helvetica", textColor=C_DARK, alignment=TA_CENTER)),
+        Paragraph(f"{order.total_quantity:.2f}",         s_right),
+        Paragraph(f"{unit_price:,.2f}",                  s_right),
+        Paragraph(f"{half_gst:.1f}%",                    ps("cp", fontSize=8, fontName="Helvetica", textColor=C_DARK, alignment=TA_CENTER)),
+        Paragraph(f"{cgst_amt:,.2f}",                    s_right),
+        Paragraph(f"{half_gst:.1f}%",                    ps("sp", fontSize=8, fontName="Helvetica", textColor=C_DARK, alignment=TA_CENTER)),
+        Paragraph(f"{sgst_amt:,.2f}",                    s_right),
+        Paragraph(f"{subtotal:,.2f}",                    s_rbold),
+    ]
+
+    items_tbl = Table([header_row, data_row], colWidths=cw, repeatRows=1)
     items_tbl.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, 0),  C_BURNT),
-        ("TOPPADDING",    (0, 0), (-1, 0),  8),
-        ("BOTTOMPADDING", (0, 0), (-1, 0),  8),
-        ("LEFTPADDING",   (0, 0), (-1, 0),  10),
-        ("RIGHTPADDING",  (0, 0), (-1, 0),  10),
-        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [C_WARM, C_WHITE]),
-        ("TOPPADDING",    (0, 1), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
-        ("LEFTPADDING",   (0, 1), (-1, -1), 10),
-        ("RIGHTPADDING",  (0, 1), (-1, -1), 10),
+        ("TOPPADDING",    (0, 0), (-1, 0),  7),
+        ("BOTTOMPADDING", (0, 0), (-1, 0),  7),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+        ("BACKGROUND",    (0, 1), (-1, -1), C_WARM),
+        ("TOPPADDING",    (0, 1), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ("LINEBELOW",     (0, 0), (-1, -1), 0.5, C_STROKE),
+        ("BOX",           (0, 0), (-1, -1), 0.5, C_STROKE),
+        ("INNERGRID",     (0, 0), (-1, -1), 0.3, C_STROKE),
     ]))
     story.append(items_tbl)
-    story.append(Spacer(1, 5*mm))
+    story.append(Spacer(1, 3*mm))
 
     # ══════════════════════════════════════════════════════════════════
-    #  PAYMENT TOTAL
+    #  TOTALS — Items count left, breakdown right
     # ══════════════════════════════════════════════════════════════════
-    if order.payment_amount:
-        totals = [
-            ("Subtotal",    f"Rs. {order.payment_amount:,.2f}", False),
-            ("Tax (incl.)", "Inclusive",                        False),
-            ("TOTAL PAID",  f"Rs. {order.payment_amount:,.2f}", True),
-        ]
-        total_rows = []
-        for label, value, bold in totals:
-            fn = "Helvetica-Bold"
-            fs = 11 if bold else 9
-            tc_val = C_GREEN if bold else C_DARK
-            total_rows.append([
-                Paragraph(label, ps(f"tl{label}", fontSize=fs, fontName=fn,
-                                    textColor=C_DARK, alignment=TA_RIGHT)),
-                Paragraph(value, ps(f"tv{label}", fontSize=fs, fontName=fn,
-                                    textColor=tc_val, alignment=TA_RIGHT)),
-            ])
+    items_count = Paragraph(
+        f"Items in Total {order.total_quantity:.2f}",
+        ps("ic", fontSize=9, fontName="Helvetica-Bold", textColor=C_DARK),
+    )
 
-        total_outer = Table(
-            [[Spacer(1, 1), Table(total_rows, colWidths=[42*mm, 36*mm])]],
-            colWidths=[W - 82*mm, 82*mm],
-        )
-        total_outer.setStyle(TableStyle([
-            ("VALIGN",      (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING",(0, 0), (-1, -1), 0),
-        ]))
-        story.append(total_outer)
-        story.append(Spacer(1, 5*mm))
+    total_rows = [
+        ("Sub Total",                      f"{subtotal:,.2f}",      False),
+        (f"CGST{half_gst} ({half_gst}%)",  f"{cgst_amt:,.2f}",     False),
+        (f"SGST{half_gst} ({half_gst}%)",  f"{sgst_amt:,.2f}",     False),
+        ("Rounding",                        f"{rounding_adj:+.2f}", False),
+        ("Total",                           f"Rs.{total_round:,.2f}", True),
+        ("Balance Due",                     f"Rs.{total_round:,.2f}", True),
+    ]
+
+    tr_data = []
+    for label, value, bold in total_rows:
+        fn = "Helvetica-Bold" if bold else "Helvetica"
+        fs = 10 if bold else 9
+        tr_data.append([
+            Paragraph(label, ps(f"tl{label}", fontSize=fs, fontName=fn,
+                                textColor=C_DARK, alignment=TA_RIGHT)),
+            Paragraph(value, ps(f"tv{label}", fontSize=fs, fontName=fn,
+                                textColor=C_GREEN if bold else C_DARK, alignment=TA_RIGHT)),
+        ])
+
+    totals_tbl = Table(tr_data, colWidths=[40*mm, 32*mm])
+    totals_tbl.setStyle(TableStyle([
+        ("TOPPADDING",    (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LINEABOVE",     (0, 4), (-1, 4),  1, C_STROKE),
+        ("LINEABOVE",     (0, 5), (-1, 5),  0.5, C_STROKE),
+    ]))
+
+    total_outer = Table(
+        [[items_count, totals_tbl]],
+        colWidths=[W - 76*mm, 76*mm],
+    )
+    total_outer.setStyle(TableStyle([
+        ("VALIGN",      (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",(0, 0), (-1, -1), 0),
+    ]))
+    story.append(total_outer)
+    story.append(Spacer(1, 4*mm))
+
+    # ── Total in words ────────────────────────────────────────────────
+    try:
+        from num2words import num2words
+        words = num2words(int(total_round), lang="en_IN").title()
+        words_str = f"Indian Rupee {words} Only"
+    except Exception:
+        words_str = f"Rs. {total_round:,.2f}"
+
+    story.append(Paragraph(f"<b>Total In Words</b>", s_muted))
+    story.append(Paragraph(f"<i>{words_str}</i>", s_body))
+    story.append(Spacer(1, 4*mm))
+
+    # ── Authorized Signature ──────────────────────────────────────────
+    sig_tbl = Table([[
+        Spacer(1, 1),
+        Paragraph("Authorized Signature",
+                  ps("sig", fontSize=9, fontName="Helvetica", textColor=C_MUTED, alignment=TA_RIGHT)),
+    ]], colWidths=[W - 50*mm, 50*mm])
+    sig_tbl.setStyle(TableStyle([
+        ("LEFTPADDING",  (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(sig_tbl)
+    story.append(Spacer(1, 6*mm))
 
     # ══════════════════════════════════════════════════════════════════
     #  PAYMENT RECEIVED BANNER
@@ -639,11 +736,11 @@ def _generate_invoice_pdf(order, transaction, profile):
     banner.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, -1), colors.HexColor("#F0FFF6")),
         ("BOX",           (0, 0), (-1, -1), 1, colors.HexColor("#A8E6BF")),
-        ("TOPPADDING",    (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING",    (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
     ]))
     story.append(banner)
-    story.append(Spacer(1, 8*mm))
+    story.append(Spacer(1, 6*mm))
 
     # ══════════════════════════════════════════════════════════════════
     #  FOOTER

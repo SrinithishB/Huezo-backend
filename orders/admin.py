@@ -35,9 +35,9 @@ def export_orders_to_excel(queryset, filename):
         "WL Prototype", "Fabric",
         "Style Name", "Category", "Garment Type",
         "Fit Sizes", "Total Qty", "MOQ",
-        "Payment Amount", "Customization Notes",
-        "Message", "Fabric Type",
-        "Swatch Required",                          # ← NEW
+        "Payment Amount", "Unit Price", "HSN/SAC Code", "GST %",
+        "Customization Notes", "Message", "Fabric Type",
+        "Swatch Required",
         "Admin Notes", "Enquiry No.", "Created At",
     ]
 
@@ -65,6 +65,9 @@ def export_orders_to_excel(queryset, filename):
             order.total_quantity,
             order.moq or "—",
             f"₹{order.payment_amount}" if order.payment_amount else "—",
+            f"₹{order.unit_price}"     if order.unit_price     else "—",
+            order.hsn_code or "—",
+            f"{order.gst_percentage}%" if order.gst_percentage is not None else "—",
             order.customization_notes or "—",
             order.message or "—",
             order.fabric_type or "—",
@@ -143,7 +146,8 @@ class OrderAdmin(admin.ModelAdmin):
         "order_number", "order_type", "customer_user",
         "assigned_to", "status", "swatch_badge",
         "total_quantity", "for_category",
-        "garment_type", "payment_status_display", "created_at",
+        "garment_type", "payment_status_display",
+        "invoice_summary", "created_at",
     ]
     list_filter   = [
         "order_type", "status",
@@ -236,12 +240,17 @@ class OrderAdmin(admin.ModelAdmin):
                 "Swatch Approved stages before Procurement."
             ),
         }),
-        ("Payment", {
-            "fields": ("payment_amount", "payment_info"),
+        ("Payment & Invoice", {
+            "fields": (
+                "payment_amount",
+                "unit_price", "hsn_code", "gst_percentage",
+                "payment_info",
+            ),
             "description": (
-                "Set the payment amount and save. "
-                "When status is set to payment_pending, "
-                "a Razorpay payment link will be auto-created for the customer."
+                "Set the payment amount and save — a Razorpay link is auto-created when "
+                "status is set to payment_pending. "
+                "Unit Price, HSN/SAC Code and GST % are used to generate the tax invoice PDF. "
+                "GST % is split equally as CGST + SGST (e.g. 5 = 2.5% + 2.5%)."
             ),
         }),
         ("Traceability", {
@@ -271,6 +280,27 @@ class OrderAdmin(admin.ModelAdmin):
             'border-radius:10px;font-size:11px;">Direct</span>'
         )
     swatch_badge.short_description = "Swatch"
+
+    def invoice_summary(self, obj):
+        """Shows unit price + GST in the list view when set."""
+        if not obj.unit_price:
+            return mark_safe('<span style="color:#ccc;">—</span>')
+        from decimal import Decimal, ROUND_HALF_UP
+        qty      = Decimal(str(obj.total_quantity))
+        rate     = Decimal(str(obj.unit_price))
+        gst_pct  = Decimal(str(obj.gst_percentage or 5))
+        subtotal = (rate * qty).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        half     = gst_pct / 2
+        cgst     = (subtotal * half / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        sgst     = cgst
+        total    = (subtotal + cgst + sgst).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        return format_html(
+            '<span style="font-size:11px;color:#333;">'
+            '₹{}/u &nbsp;|&nbsp; GST {}% &nbsp;|&nbsp; <b>₹{}</b>'
+            '</span>',
+            obj.unit_price, gst_pct, total,
+        )
+    invoice_summary.short_description = "Invoice"
 
     def payment_status_display(self, obj):
         from payments.models import PaymentTransaction, PaymentStatus

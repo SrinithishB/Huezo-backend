@@ -370,7 +370,9 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "customization_notes", "message", "fabric_type",
             "swatch_required",                              # ← NEW
             "status", "valid_stages",
-            "payment_amount", "payment",
+            "payment_amount",
+            "unit_price", "hsn_code", "gst_percentage",
+            "payment",
             "notes", "images", "stage_history",
             "created_at", "updated_at",
         ]
@@ -453,6 +455,17 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
     notes          = serializers.CharField(required=False, allow_blank=True)
     payment_amount = serializers.DecimalField(
         max_digits=10, decimal_places=2,
+        required=False, allow_null=True,
+        min_value=0,
+    )
+    unit_price = serializers.DecimalField(
+        max_digits=10, decimal_places=2,
+        required=False, allow_null=True,
+        min_value=0,
+    )
+    hsn_code = serializers.CharField(required=False, allow_blank=True)
+    gst_percentage = serializers.DecimalField(
+        max_digits=5, decimal_places=2,
         required=False, allow_null=True,
         min_value=0,
     )
