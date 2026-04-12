@@ -32,20 +32,14 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      - key: EMAIL_HOST
-        value: smtp.gmail.com
-      - key: EMAIL_PORT
-        value: "587"
-      - key: EMAIL_USE_TLS
-        value: "True"
-      - key: EMAIL_USE_SSL
-        value: "False"
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
+      - key: SENDGRID_API_KEY
         sync: false
       - key: DEFAULT_FROM_EMAIL
-        value: "Huezo <bsrinithish@gmail.com>"
+        value: "Huezo <noreply@huezo.in>"
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
 
 databases:
   - name: huezo-db
