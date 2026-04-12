@@ -273,7 +273,7 @@ class OrderAdmin(admin.ModelAdmin):
         if obj.swatch_required:
             return mark_safe(
                 '<span style="background:#f0e6ff;color:#5b21b6;padding:2px 8px;'
-                'border-radius:10px;font-size:11px;font-weight:600;">🧵 Swatch</span>'
+                'border-radius:10px;font-size:11px;font-weight:600;">Swatch</span>'
             )
         return mark_safe(
             '<span style="background:#f0f0f0;color:#666;padding:2px 8px;'
@@ -420,7 +420,7 @@ class OrderAdmin(admin.ModelAdmin):
 
             messages.info(
                 request,
-                f"🔄 Creating payment for {order.order_number} | Amount: ₹{order.payment_amount}"
+                f"Creating payment for {order.order_number} | Amount: ₹{order.payment_amount}"
             )
 
             ct = ContentType.objects.get_for_model(order)
@@ -432,7 +432,7 @@ class OrderAdmin(admin.ModelAdmin):
             if existing.exists():
                 messages.warning(
                     request,
-                    f"⚠️ Pending payment already exists: {existing.first().razorpay_order_id}"
+                    f"Pending payment already exists: {existing.first().razorpay_order_id}"
                 )
                 return
 
@@ -445,16 +445,16 @@ class OrderAdmin(admin.ModelAdmin):
             )
             messages.success(
                 request,
-                f"✅ Razorpay payment created. "
+                f"Razorpay payment created. "
                 f"Order ID: {result['razorpay_order_id']} | Amount: ₹{order.payment_amount}"
             )
         except Exception as e:
-            messages.error(request, f"❌ Payment error: {str(e)}")
-            messages.error(request, f"🔍 Traceback: {traceback.format_exc()[:600]}")
+            messages.error(request, f"Payment error: {str(e)}")
+            messages.error(request, f"Traceback: {traceback.format_exc()[:600]}")
 
     # ── Bulk actions ───────────────────────────────────────────────── #
 
-    @admin.action(description="📥 Export selected orders to Excel")
+    @admin.action(description="Export selected orders to Excel")
     def export_all_as_excel(self, request, queryset):
         qs = queryset.select_related(
             "customer_user", "created_by_user",
@@ -463,21 +463,21 @@ class OrderAdmin(admin.ModelAdmin):
         return export_orders_to_excel(
             qs, f"orders_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
 
-    @admin.action(description="📥 Export White Label orders to Excel")
+    @admin.action(description="Export White Label orders to Excel")
     def export_wl_as_excel(self, request, queryset):
         qs = queryset.filter(order_type="white_label").select_related(
             "customer_user", "created_by_user", "white_label_catalogue", "enquiry",
         )
         return export_orders_to_excel(qs, f"orders_wl_{timezone.now().strftime('%Y%m%d')}.xlsx")
 
-    @admin.action(description="📥 Export Private Label orders to Excel")
+    @admin.action(description="Export Private Label orders to Excel")
     def export_pl_as_excel(self, request, queryset):
         qs = queryset.filter(order_type="private_label").select_related(
             "customer_user", "created_by_user", "enquiry",
         )
         return export_orders_to_excel(qs, f"orders_pl_{timezone.now().strftime('%Y%m%d')}.xlsx")
 
-    @admin.action(description="📥 Export Fabrics orders to Excel")
+    @admin.action(description="Export Fabrics orders to Excel")
     def export_fabrics_as_excel(self, request, queryset):
         qs = queryset.filter(order_type="fabrics").select_related(
             "customer_user", "created_by_user", "fabric_catalogue", "enquiry",
@@ -487,49 +487,49 @@ class OrderAdmin(admin.ModelAdmin):
 
     # ── Swatch stage actions (fabrics orders) ──────────────────────── #
 
-    @admin.action(description="🧵 [Fabrics] Mark as Swatch Sent")
+    @admin.action(description="[Fabrics] Mark as Swatch Sent")
     def mark_as_swatch_sent(self, request, queryset):
         self._bulk_update_status(request, queryset, "swatch_sent",
                                   require_swatch=True)
 
-    @admin.action(description="📬 [Fabrics] Mark as Swatch Received")
+    @admin.action(description="[Fabrics] Mark as Swatch Received")
     def mark_as_swatch_received(self, request, queryset):
         self._bulk_update_status(request, queryset, "swatch_received",
                                   require_swatch=True)
 
-    @admin.action(description="✅ [Fabrics] Mark as Swatch Approved")
+    @admin.action(description="[Fabrics] Mark as Swatch Approved")
     def mark_as_swatch_approved(self, request, queryset):
         self._bulk_update_status(request, queryset, "swatch_approved",
                                   require_swatch=True)
 
-    @admin.action(description="🔁 [Fabrics] Mark as Swatch Rework")
+    @admin.action(description="[Fabrics] Mark as Swatch Rework")
     def mark_as_swatch_rework(self, request, queryset):
         self._bulk_update_status(request, queryset, "swatch_rework",
                                   require_swatch=True)
 
     # ── Standard stage actions ─────────────────────────────────────── #
 
-    @admin.action(description="🏭 Mark selected as Procurement")
+    @admin.action(description="Mark selected as Procurement")
     def mark_as_procurement(self, request, queryset):
         self._bulk_update_status(request, queryset, "procurement")
 
-    @admin.action(description="📦 Mark selected as Packing")
+    @admin.action(description="Mark selected as Packing")
     def mark_as_packing(self, request, queryset):
         self._bulk_update_status(request, queryset, "packing")
 
-    @admin.action(description="💳 Mark selected as Payment Pending")
+    @admin.action(description="Mark selected as Payment Pending")
     def mark_as_payment_pending(self, request, queryset):
         self._bulk_update_status(request, queryset, "payment_pending")
 
-    @admin.action(description="✅ Mark selected as Payment Done")
+    @admin.action(description="Mark selected as Payment Done")
     def mark_as_payment_done(self, request, queryset):
         self._bulk_update_status(request, queryset, "payment_done")
 
-    @admin.action(description="🚚 Mark selected as Dispatched")
+    @admin.action(description="Mark selected as Dispatched")
     def mark_as_dispatch(self, request, queryset):
         self._bulk_update_status(request, queryset, "dispatch")
 
-    @admin.action(description="🎉 Mark selected as Delivered")
+    @admin.action(description="Mark selected as Delivered")
     def mark_as_delivered(self, request, queryset):
         self._bulk_update_status(request, queryset, "delivered")
 
