@@ -237,10 +237,10 @@ class ForgotPasswordRequestView(APIView):
 
         try:
             from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import Mail
+            from sendgrid.helpers.mail import Mail, Email
             expiry  = getattr(django_settings, "OTP_EXPIRY_MINUTES", 10)
             message = Mail(
-                from_email    = django_settings.DEFAULT_FROM_EMAIL,
+                from_email    = Email("noreply@huezo.in", "Huezo"),
                 to_emails     = user.email,
                 subject       = "Your Huezo Password Reset OTP",
                 plain_text_content = (
