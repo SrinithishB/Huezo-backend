@@ -55,8 +55,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'enquiries',
-    'cloudinary',
-    'cloudinary_storage',
+    'storages',
 ]
 AUTH_USER_MODEL = "accounts.User"
 
@@ -197,18 +196,20 @@ USE_TZ = True
 STATIC_URL  = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-CLOUDINARY_STORAGE = {
-    "CLOUD_NAME": env("CLOUDINARY_CLOUD_NAME", default=""),
-    "API_KEY":    env("CLOUDINARY_API_KEY",    default=""),
-    "API_SECRET": env("CLOUDINARY_API_SECRET", default=""),
-}
+# ── AWS S3 ─────────────────────────────────────────────────────────────
+AWS_ACCESS_KEY_ID       = env("AWS_ACCESS_KEY_ID",       default="")
+AWS_SECRET_ACCESS_KEY   = env("AWS_SECRET_ACCESS_KEY",   default="")
+AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
+AWS_S3_REGION_NAME      = env("AWS_S3_REGION_NAME",      default="ap-south-1")
+AWS_S3_FILE_OVERWRITE   = False          # never silently overwrite uploads
+AWS_DEFAULT_ACL         = None           # rely on bucket policy, not object ACL
 
-MEDIA_URL  = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # used only in local dev
+MEDIA_URL  = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")   # local fallback only
 
 _media_storage = (
-    "cloudinary_storage.storage.MediaCloudinaryStorage"
-    if CLOUDINARY_STORAGE["CLOUD_NAME"]
+    "storages.backends.s3boto3.S3Boto3Storage"
+    if AWS_STORAGE_BUCKET_NAME
     else "django.core.files.storage.FileSystemStorage"
 )
 
