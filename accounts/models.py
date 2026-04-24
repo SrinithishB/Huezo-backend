@@ -143,7 +143,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class PasswordResetOTP(models.Model):
     user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reset_otps")
-    otp        = models.CharField(max_length=6)
+    otp_hash   = models.CharField(max_length=64)
     reset_token = models.CharField(max_length=64, blank=True)
     is_verified = models.BooleanField(default=False)
     expires_at  = models.DateTimeField()

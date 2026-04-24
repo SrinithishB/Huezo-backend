@@ -1,6 +1,8 @@
 import secrets
 import random
 import logging
+import hmac
+import hashlib
 from datetime import timedelta
 
 from rest_framework import generics, status, filters
@@ -15,6 +17,12 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_otp(otp: str) -> str:
+    """HMAC-SHA256 of the OTP using SECRET_KEY — never store raw OTPs."""
+    from django.conf import settings as _s
+    return hmac.new(_s.SECRET_KEY.encode(), otp.encode(), hashlib.sha256).hexdigest()
 
 from .models import User, Customer, PasswordResetOTP
 from .serializers import (
@@ -51,6 +59,7 @@ class RegisterView(APIView):
     Public — creates a customer user + profile in one request.
     """
     permission_classes = [AllowAny]
+    throttle_classes   = [AnonRateThrottle]
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -224,15 +233,16 @@ class ForgotPasswordRequestView(APIView):
 
         # Use secrets for cryptographically secure OTP
         otp        = f"{secrets.randbelow(1000000):06d}"
+        otp_hash   = _hash_otp(otp)
         expires_at = timezone.now() + timedelta(
             minutes=getattr(django_settings, "OTP_EXPIRY_MINUTES", 10)
         )
 
         # Atomic update-or-create prevents race condition
         PasswordResetOTP.objects.update_or_create(
-            user       = user,
+            user        = user,
             is_verified = False,
-            defaults   = {"otp": otp, "expires_at": expires_at, "reset_token": ""},
+            defaults    = {"otp_hash": otp_hash, "expires_at": expires_at, "reset_token": ""},
         )
 
         try:
@@ -253,7 +263,7 @@ class ForgotPasswordRequestView(APIView):
             )
             SendGridAPIClient(django_settings.SENDGRID_API_KEY).send(message)
         except Exception as e:
-            logger.error(f"OTP email failed for {email}: {e}")
+            logger.error(f"OTP email failed for user {user.id}: {e}")
             return Response(
                 {"error": "Failed to send OTP. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -268,6 +278,7 @@ class ForgotPasswordVerifyOTPView(APIView):
     Public — verify OTP and receive a short-lived reset token.
     """
     permission_classes = [AllowAny]
+    throttle_classes   = [OTPRateThrottle]
 
     def post(self, request):
         email = request.data.get("email", "").strip().lower()
@@ -288,7 +299,7 @@ class ForgotPasswordVerifyOTPView(APIView):
             )
 
         record = PasswordResetOTP.objects.filter(
-            user=user, otp=otp, is_verified=False
+            user=user, otp_hash=_hash_otp(otp), is_verified=False
         ).order_by("-created_at").first()
 
         if not record:
@@ -322,6 +333,7 @@ class ForgotPasswordResetView(APIView):
     Public — set a new password using the reset token from verify step.
     """
     permission_classes = [AllowAny]
+    throttle_classes   = [OTPRateThrottle]
 
     def post(self, request):
         reset_token      = request.data.get("reset_token", "").strip()

@@ -21,13 +21,27 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+def _get_credentials_dict():
+    """Load Firebase service-account credentials from env var or fall back to file."""
+    import base64
+
+    creds_json = getattr(settings, "FIREBASE_CREDENTIALS_JSON", "")
+    if creds_json:
+        try:
+            return json.loads(base64.b64decode(creds_json))
+        except Exception:
+            return json.loads(creds_json)
+    with open(str(settings.FIREBASE_CREDENTIALS_PATH)) as f:
+        return json.load(f)
+
+
 def _get_access_token():
     """Get a short-lived OAuth2 access token using the service account credentials."""
     from google.oauth2 import service_account
     import google.auth.transport.requests
 
-    credentials = service_account.Credentials.from_service_account_file(
-        str(settings.FIREBASE_CREDENTIALS_PATH),
+    credentials = service_account.Credentials.from_service_account_info(
+        _get_credentials_dict(),
         scopes=["https://www.googleapis.com/auth/firebase.messaging"],
     )
     request = google.auth.transport.requests.Request()
@@ -36,9 +50,8 @@ def _get_access_token():
 
 
 def _get_project_id():
-    """Read project_id from the credentials file."""
-    with open(str(settings.FIREBASE_CREDENTIALS_PATH)) as f:
-        return json.load(f)["project_id"]
+    """Read project_id from credentials."""
+    return _get_credentials_dict()["project_id"]
 
 
 def send_push(user, title: str, body: str, data: dict = None):

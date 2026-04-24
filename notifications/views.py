@@ -28,15 +28,22 @@ class RegisterFCMTokenView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Update existing token or create new device entry
-        FCMDevice.objects.update_or_create(
-            fcm_token = fcm_token,
-            defaults  = {
-                "user":      request.user,
-                "device_id": device_id,
-                "is_active": True,
-            },
-        )
+        # Remove this token from any other user (token reassigned by Firebase)
+        FCMDevice.objects.filter(fcm_token=fcm_token).exclude(user=request.user).delete()
+
+        # Register for current user, keyed by device_id when provided
+        if device_id:
+            FCMDevice.objects.update_or_create(
+                user      = request.user,
+                device_id = device_id,
+                defaults  = {"fcm_token": fcm_token, "is_active": True},
+            )
+        else:
+            FCMDevice.objects.update_or_create(
+                user      = request.user,
+                fcm_token = fcm_token,
+                defaults  = {"device_id": "", "is_active": True},
+            )
         return Response({"status": "ok"})
 
 

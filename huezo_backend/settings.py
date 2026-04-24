@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'enquiries',
     'storages',
+    'django_cleanup.apps.CleanupConfig',
 ]
 AUTH_USER_MODEL = "accounts.User"
 
@@ -136,9 +137,7 @@ TEMPLATES = [
     },
 ]
 
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',                    # ← this line
-]
+STATICFILES_DIRS = [d for d in [BASE_DIR / 'static'] if d.exists()]
 
 WSGI_APPLICATION = 'huezo_backend.wsgi.application'
 
@@ -147,7 +146,8 @@ WSGI_APPLICATION = 'huezo_backend.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASE_URL = env("DATABASE_URL", default="")
-if DATABASE_URL:
+USE_SQLITE   = env.bool("USE_SQLITE", default=False)
+if DATABASE_URL and not USE_SQLITE:
     import dj_database_url
     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
 else:
@@ -223,17 +223,22 @@ STORAGES = {
 }
 
 FIREBASE_CREDENTIALS_PATH = BASE_DIR / "firebase-credentials.json"
+FIREBASE_CREDENTIALS_JSON = env("FIREBASE_CREDENTIALS_JSON", default="")
 
 # ── Security (production) ──────────────────────────────────────────────
 if not DEBUG:
     SECURE_HSTS_SECONDS            = 31536000   # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD            = True
-    SECURE_SSL_REDIRECT            = env.bool("SECURE_SSL_REDIRECT", default=True)
+    # Set SECURE_SSL_REDIRECT=False when behind ALB/nginx that terminates SSL,
+    # otherwise Django redirects HTTP→HTTPS in a loop (ALB sends plain HTTP to EC2).
+    SECURE_SSL_REDIRECT            = env.bool("SECURE_SSL_REDIRECT", default=False)
+    # Tell Django to trust X-Forwarded-Proto from the load balancer / reverse proxy
+    SECURE_PROXY_SSL_HEADER        = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE          = True
     CSRF_COOKIE_SECURE             = True
-    SECURE_BROWSER_XSS_FILTER     = True
-    SECURE_CONTENT_TYPE_NOSNIFF   = True
+    SECURE_BROWSER_XSS_FILTER      = True
+    SECURE_CONTENT_TYPE_NOSNIFF    = True
     X_FRAME_OPTIONS                = "DENY"
 
 # ── Email ──────────────────────────────────────────────────────────────

@@ -68,11 +68,8 @@ class LoginSerializer(serializers.Serializer):
 
         if not user.check_password(attrs["password"]):
             user.record_failed_login()
-            remaining = user.MAX_FAILED_ATTEMPTS - user.failed_login_attempts
-            if remaining > 0:
-                raise serializers.ValidationError(
-                    f"Invalid credentials. {remaining} attempt(s) remaining before lockout."
-                )
+            if not user.is_locked:
+                raise serializers.ValidationError("Invalid credentials.")
             raise serializers.ValidationError("Account locked due to too many failed attempts.")
 
         user.record_successful_login()

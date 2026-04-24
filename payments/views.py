@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from .models import PaymentTransaction, PaymentStatus
@@ -168,21 +168,16 @@ class PaymentStatusView(APIView):
 
 # ── ADMIN: LIST ALL TRANSACTIONS ──────────────────────────────────────
 
-class PaymentTransactionListView(APIView):
+class PaymentTransactionListView(generics.ListAPIView):
     """
     GET /api/payments/transactions/
-    Admin only — list all payment transactions.
+    Admin only — paginated list of all payment transactions.
     """
     permission_classes = [IsAuthenticated, IsAdminOrStaff]
-
-    def get(self, request):
-        transactions = PaymentTransaction.objects.select_related(
-            "paid_by", "content_type"
-        ).all()
-        serializer = PaymentTransactionSerializer(
-            transactions, many=True, context={"request": request}
-        )
-        return Response(serializer.data)
+    serializer_class   = PaymentTransactionSerializer
+    queryset           = PaymentTransaction.objects.select_related(
+        "paid_by", "content_type"
+    ).all()
     
 # ── ADD THIS TO payments/views.py ─────────────────────────────────────
 #
@@ -239,6 +234,13 @@ class PaymentVerifyView(APIView):
             transaction = PaymentTransaction.objects.get(razorpay_order_id=rzp_order_id)
         except PaymentTransaction.DoesNotExist:
             return Response({"error": "Transaction not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure the transaction belongs to the order in the URL
+        if str(transaction.object_id) != str(order.id):
+            return Response(
+                {"error": "Payment does not belong to this order."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Already paid — idempotent
         if transaction.status == PaymentStatus.PAID:
