@@ -305,6 +305,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     wl_prototype = serializers.SerializerMethodField()
     fabric       = serializers.SerializerMethodField()
     assigned_to  = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
 
     class Meta:
         model  = Order
@@ -312,7 +313,7 @@ class OrderListSerializer(serializers.ModelSerializer):
             "id", "order_number", "order_type",
             "customer", "assigned_to", "wl_prototype", "fabric",
             "style_name", "for_category", "garment_type",
-            "total_quantity", "status", "created_at",
+            "total_quantity", "status", "created_at", "thumbnail_url",
         ]
 
     def get_customer(self, obj):
@@ -341,6 +342,17 @@ class OrderListSerializer(serializers.ModelSerializer):
                 "id":          str(obj.fabric_catalogue.id),
                 "fabric_name": obj.fabric_catalogue.fabric_name,
             }
+        return None
+
+    def get_thumbnail_url(self, obj):
+        request = self.context.get("request")
+        if obj.white_label_catalogue and obj.white_label_catalogue.thumbnail:
+            img = obj.white_label_catalogue.thumbnail
+            return request.build_absolute_uri(img.url) if request else img.url
+        if obj.fabric_catalogue:
+            thumb = obj.fabric_catalogue.images.filter(is_thumbnail=True).first()
+            if thumb and thumb.image:
+                return request.build_absolute_uri(thumb.image.url) if request else thumb.image.url
         return None
 
 
