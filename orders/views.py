@@ -27,11 +27,18 @@ from accounts.permissions import IsAdminOrStaff
 # ── FILTER ─────────────────────────────────────────────────────────────
 
 class OrderFilter(django_filters.FilterSet):
-    date_from   = django_filters.DateFilter(field_name="created_at", lookup_expr="gte")
-    date_to     = django_filters.DateFilter(field_name="created_at", lookup_expr="lte")
-    assigned_to = django_filters.UUIDFilter(field_name="assigned_to__id")
-    unassigned  = django_filters.BooleanFilter(field_name="assigned_to", lookup_expr="isnull")
+    date_from     = django_filters.DateFilter(field_name="created_at", lookup_expr="gte")
+    date_to       = django_filters.DateFilter(field_name="created_at", lookup_expr="lte")
+    assigned_to   = django_filters.UUIDFilter(field_name="assigned_to__id")
+    unassigned    = django_filters.BooleanFilter(field_name="assigned_to", lookup_expr="isnull")
     customer_user = django_filters.UUIDFilter(field_name="customer_user__id")
+    status_in     = django_filters.CharFilter(method="filter_status_in")
+
+    def filter_status_in(self, queryset, name, value):
+        statuses = [s.strip() for s in value.split(",") if s.strip()]
+        if statuses:
+            return queryset.filter(status__in=statuses)
+        return queryset
 
     class Meta:
         model  = Order
