@@ -31,10 +31,11 @@ class OrderFilter(django_filters.FilterSet):
     date_to     = django_filters.DateFilter(field_name="created_at", lookup_expr="lte")
     assigned_to = django_filters.UUIDFilter(field_name="assigned_to__id")
     unassigned  = django_filters.BooleanFilter(field_name="assigned_to", lookup_expr="isnull")
+    customer_user = django_filters.UUIDFilter(field_name="customer_user__id")
 
     class Meta:
         model  = Order
-        fields = ["order_type", "status", "fabric_type", "for_category", "assigned_to"]
+        fields = ["order_type", "status", "fabric_type", "for_category", "assigned_to", "customer_user"]
 
 
 # ── CREATE ORDER ───────────────────────────────────────────────────────
