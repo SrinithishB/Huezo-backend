@@ -314,6 +314,7 @@ class OrderListSerializer(serializers.ModelSerializer):
             "customer", "assigned_to", "wl_prototype", "fabric",
             "style_name", "for_category", "garment_type",
             "total_quantity", "status", "created_at", "thumbnail_url",
+            "payment_amount",
         ]
 
     def get_customer(self, obj):
