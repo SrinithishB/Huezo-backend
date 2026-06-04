@@ -94,8 +94,8 @@ class FabricListSerializer(serializers.ModelSerializer):
     class Meta:
         model  = FabricsCatalogue
         fields = [
-            "id", "fabric_type", "fabric_name",
-            "composition", "width_cm", "price_per_meter",
+            "id", "fabric_type", "fabric_name", "description",
+            "composition", "width_cm", "colour_options", "price_per_meter",
             "stock_available_meters", "effective_moq",
             "thumbnail_url", "is_active",
         ]
