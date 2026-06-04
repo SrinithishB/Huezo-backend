@@ -28,7 +28,7 @@ class WLPrototypeAdmin(admin.ModelAdmin):
         "is_active", "thumbnail_preview", "created_at",
     ]
     list_filter     = ["for_gender", "is_active", "is_prebooking", "garment_type"]
-    search_fields   = ["prototype_code", "garment_type", "collection_name"]
+    search_fields   = ["prototype_code", "garment_type", "collection_name", "description"]
     readonly_fields = ["id", "thumbnail_preview", "created_by_admin", "created_at", "updated_at"]
     ordering        = ["-created_at"]
     inlines         = [WLPrototypeImageInline]
@@ -45,7 +45,7 @@ class WLPrototypeAdmin(admin.ModelAdmin):
             "description": "Upload the primary display image for this prototype.",
         }),
         ("Order Details", {
-            "fields": ("moq", "fit_sizes", "customization_available"),
+            "fields": ("description", "moq", "fit_sizes", "customization_available"),
         }),
         ("Pre-booking", {
             "fields": ("is_prebooking", "prebooking_close_date"),

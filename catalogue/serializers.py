@@ -24,7 +24,7 @@ class WLPrototypeListSerializer(serializers.ModelSerializer):
         model  = WLPrototype
         fields = [
             "id", "prototype_code", "collection_name",
-            "for_gender", "garment_type",
+            "for_gender", "garment_type", "description",
             "thumbnail_url", "moq", "fit_sizes",
             "is_prebooking", "prebooking_close_date", "is_active",
         ]
@@ -46,7 +46,7 @@ class WLPrototypeDetailSerializer(serializers.ModelSerializer):
         model  = WLPrototype
         fields = [
             "id", "prototype_code", "collection_name",
-            "for_gender", "garment_type",
+            "for_gender", "garment_type", "description",
             "thumbnail_url", "moq", "fit_sizes",
             "customization_available",
             "is_prebooking", "prebooking_close_date", "is_active",

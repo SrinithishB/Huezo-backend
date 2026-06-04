@@ -52,6 +52,7 @@ class WLPrototype(models.Model):
     )
 
     # Order details
+    description = models.TextField(null=True, blank=True, help_text="Additional style details to show on the product page")
     moq = models.SmallIntegerField(default=15, help_text="Minimum order quantity (pcs/style)")
 
     # Sizing & customisation
