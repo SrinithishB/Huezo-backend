@@ -37,6 +37,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost", ".o
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'notifications',
     'accounts',
     'banners',
@@ -285,4 +286,70 @@ LOGGING = {
             "propagate": False,
         },
     },
+}
+
+
+# ── Jazzmin Settings (Admin Panel UI/UX Customization) ─────────────────
+JAZZMIN_SETTINGS = {
+    "site_title": "Huezo Admin",
+    "site_header": "Huezo",
+    "site_brand": "Huezo Admin",
+    "site_logo_classes": "img-circle",
+    "welcome_sign": "Welcome to Huezo Administration",
+    "copyright": "Huezo Ltd",
+    "search_model": ["accounts.User", "orders.Order"],
+    "show_sidebar": True,
+    "navigation_expanded": True,
+    "hide_apps": [],
+    "hide_models": [],
+    "order_with_respect_to": ["orders", "catalogue", "enquiries", "accounts"],
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "accounts.User": "fas fa-user-shield",
+        "accounts.Customer": "fas fa-address-card",
+        "orders.Order": "fas fa-shopping-bag",
+        "orders.OrderStageHistory": "fas fa-history",
+        "orders.OrderImage": "fas fa-image",
+        "orders.OrderNote": "fas fa-sticky-note",
+        "catalogue.WLPrototype": "fas fa-cut",
+        "catalogue.FabricsCatalogue": "fas fa-border-style",
+        "catalogue.FabricImage": "fas fa-file-image",
+        "enquiries.Enquiry": "fas fa-question-circle",
+        "notifications.Notification": "fas fa-bell",
+        "banners.Banner": "fas fa-ad",
+    },
+    "default_icon_parents": "fas fa-chevron-circle-right",
+    "default_icon_children": "fas fa-circle",
+    "related_modal_active": True,
+    "show_ui_builder": False,
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "navbar_small_text": False,
+    "footer_small_text": False,
+    "body_small_text": False,
+    "brand_small_text": False,
+    "brand_colour": "navbar-maroon",
+    "actions_colour": "navbar-maroon",
+    "navbar": "navbar-maroon navbar-dark",
+    "no_navbar_border": False,
+    "navbar_double_row": False,
+    "sidebar_shadow": True,
+    "sidebar": "sidebar-dark-maroon",
+    "sidebar_nav_small_text": False,
+    "sidebar_disable_expand": False,
+    "sidebar_nav_child_indent": True,
+    "sidebar_nav_compact_style": False,
+    "sidebar_nav_legacy_style": False,
+    "sidebar_nav_flat_style": False,
+    "theme": "flatly",
+    "dark_mode_theme": None,
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success"
+    }
 }
