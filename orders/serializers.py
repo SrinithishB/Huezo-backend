@@ -727,6 +727,8 @@ class StaffPLOrderCreateSerializer(serializers.Serializer):
     garment_type   = serializers.CharField(max_length=100, default="custom")
     size_breakdown = serializers.CharField(required=False, allow_blank=True)
     notes          = serializers.CharField(required=False, allow_blank=True)
+    hsn_code       = serializers.CharField(required=False, allow_blank=True, default="")
+    gst_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=5.00)
     images         = serializers.ListField(
         child=serializers.ImageField(),
         write_only=True,
@@ -768,20 +770,28 @@ class StaffPLOrderCreateSerializer(serializers.Serializer):
         size_breakdown = validated_data.get("size_breakdown", [])
         request        = self.context["request"]
 
+        # Calculate unit price based on total amount and quantity
+        total_amount = validated_data["total_amount"]
+        total_quantity = validated_data["total_quantity"]
+        unit_price = total_amount / total_quantity if total_quantity > 0 else 0
+
         order = Order.objects.create(
             order_type      = OrderType.PRIVATE_LABEL,
             customer_user   = customer,
             created_by_user = request.user,
             assigned_to     = request.user,
             style_name      = validated_data["style_name"],
-            total_quantity  = validated_data["total_quantity"],
-            total_amount    = validated_data["total_amount"],
+            total_quantity  = total_quantity,
+            total_amount    = total_amount,
             advance_amount  = validated_data["advance_amount"],
             payment_amount  = validated_data["advance_amount"],
             for_category    = validated_data["for_category"],
             garment_type    = validated_data["garment_type"],
             size_breakdown  = size_breakdown,
             notes           = validated_data.get("notes", ""),
+            hsn_code        = validated_data.get("hsn_code", ""),
+            gst_percentage  = validated_data.get("gst_percentage", 5.00),
+            unit_price      = unit_price,
         )
 
         for image_file in images_data:
