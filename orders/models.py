@@ -1,6 +1,7 @@
 # orders/models.py
 
 import uuid
+from django.core.validators import MaxValueValidator
 from django.db import models
 from django.conf import settings
 
@@ -175,6 +176,7 @@ class Order(models.Model):
     # Quantity
     total_quantity = models.IntegerField(help_text="Total qty required")
     moq            = models.IntegerField(null=True, blank=True,
+                                          validators=[MaxValueValidator(9999)],
                                           help_text="MOQ snapshot at time of order")
 
     # WL specific

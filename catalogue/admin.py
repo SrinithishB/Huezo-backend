@@ -1,6 +1,20 @@
+from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import WLPrototype, WLPrototypeImage
+
+class WLPrototypeForm(forms.ModelForm):
+    class Meta:
+        model = WLPrototype
+        fields = '__all__'
+        widgets = {
+            'moq': forms.NumberInput(attrs={
+                'min': '0',
+                'max': '9999',
+                'oninput': "if(this.value.length > 4) this.value = this.value.slice(0,4);",
+                'style': 'width: 100px;',
+            })
+        }
 
 
 class WLPrototypeImageInline(admin.TabularInline):
@@ -22,6 +36,7 @@ class WLPrototypeImageInline(admin.TabularInline):
 
 @admin.register(WLPrototype)
 class WLPrototypeAdmin(admin.ModelAdmin):
+    form = WLPrototypeForm
     list_display    = [
         "prototype_code", "garment_type", "for_gender",
         "collection_name", "moq", "is_prebooking",
@@ -115,8 +130,28 @@ class FabricImageInline(admin.TabularInline):
     image_preview.short_description = "Preview"
 
 
+class FabricsCatalogueForm(forms.ModelForm):
+    class Meta:
+        model = FabricsCatalogue
+        fields = '__all__'
+        widgets = {
+            'moq_regular': forms.NumberInput(attrs={
+                'min': '0',
+                'max': '9999',
+                'oninput': "if(this.value.length > 4) this.value = this.value.slice(0,4);",
+                'style': 'width: 100px;',
+            }),
+            'moq_new': forms.NumberInput(attrs={
+                'min': '0',
+                'max': '9999',
+                'oninput': "if(this.value.length > 4) this.value = this.value.slice(0,4);",
+                'style': 'width: 100px;',
+            })
+        }
+
 @admin.register(FabricsCatalogue)
 class FabricsCatalogueAdmin(admin.ModelAdmin):
+    form = FabricsCatalogueForm
     list_display    = [
         "fabric_name", "fabric_type", "effective_moq_display",
         "composition", "price_per_meter", "stock_available_meters",

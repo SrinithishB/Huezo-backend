@@ -1,4 +1,5 @@
 import uuid
+from django.core.validators import MaxValueValidator
 from django.db import models
 
 
@@ -53,7 +54,7 @@ class WLPrototype(models.Model):
 
     # Order details
     description = models.TextField(null=True, blank=True, help_text="Additional style details to show on the product page")
-    moq = models.SmallIntegerField(default=15, help_text="Minimum order quantity (pcs/style)")
+    moq = models.SmallIntegerField(default=15, validators=[MaxValueValidator(9999)], help_text="Minimum order quantity (pcs/style)")
 
     # Sizing & customisation
     fit_sizes               = FitSizesField(null=True, blank=True, help_text="e.g. S,M,L,XL,XXL")
@@ -141,8 +142,8 @@ class FabricsCatalogue(models.Model):
 
     # MOQ — driven by fabric_type
     # Regular = 400m, New = 1000m, Stock = no MOQ
-    moq_regular = models.IntegerField(default=400,  help_text="MOQ in meters for Regular fabrics")
-    moq_new     = models.IntegerField(default=1000, help_text="MOQ in meters for New fabrics")
+    moq_regular = models.IntegerField(default=400, validators=[MaxValueValidator(9999)], help_text="MOQ in meters for Regular fabrics")
+    moq_new     = models.IntegerField(default=1000, validators=[MaxValueValidator(9999)], help_text="MOQ in meters for New fabrics")
 
     # Fabric details
     composition            = models.CharField(max_length=200, null=True, blank=True, help_text="e.g. 100% Cotton")
