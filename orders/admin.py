@@ -242,7 +242,7 @@ class OrderAdmin(admin.ModelAdmin):
         }),
         ("Payment & Invoice", {
             "fields": (
-                "payment_amount",
+                "total_amount", "advance_amount", "payment_amount",
                 "unit_price", "hsn_code", "gst_percentage",
                 "payment_info",
             ),
@@ -367,6 +367,12 @@ class OrderAdmin(admin.ModelAdmin):
         if change:
             old = Order.objects.get(pk=obj.pk)
 
+            # Auto-calculate payment_amount if total_amount/advance_amount are set/changed in admin
+            if obj.status == "order_placed" and obj.advance_amount is not None:
+                obj.payment_amount = obj.advance_amount
+            elif obj.status == "payment_pending" and obj.total_amount is not None and obj.advance_amount is not None:
+                obj.payment_amount = obj.total_amount - obj.advance_amount
+
             # Track status change in stage history
             if old.status != obj.status:
                 OrderStageHistory.objects.create(
@@ -402,12 +408,21 @@ class OrderAdmin(admin.ModelAdmin):
                         f"Assignment notification failed for {obj.order_number}: {e}"
                     )
 
-            # Auto-create Razorpay payment when status → payment_pending
-            status_just_changed = (old.status != "payment_pending" and obj.status == "payment_pending")
-            amount_just_set     = (obj.status == "payment_pending" and obj.payment_amount and not old.payment_amount)
-
-            if (status_just_changed or amount_just_set) and obj.payment_amount:
-                self._create_razorpay_payment(request, obj)
+            # Auto-create Razorpay payment when status → order_placed / payment_pending
+            if obj.status == "order_placed" and obj.advance_amount:
+                # Check/create advance payment
+                try:
+                    from payments import gateway
+                    gateway.check_and_create_advance_payment(obj)
+                except Exception as e:
+                    messages.error(request, f"Advance payment error: {str(e)}")
+            elif obj.status == "payment_pending":
+                # Check/create final payment
+                try:
+                    from payments import gateway
+                    gateway.check_and_create_final_payment(obj)
+                except Exception as e:
+                    messages.error(request, f"Final payment error: {str(e)}")
 
         super().save_model(request, obj, form, change)
 

@@ -314,7 +314,7 @@ class OrderListSerializer(serializers.ModelSerializer):
             "customer", "assigned_to", "wl_prototype", "fabric",
             "style_name", "for_category", "garment_type",
             "total_quantity", "status", "created_at", "thumbnail_url",
-            "payment_amount",
+            "payment_amount", "total_amount", "advance_amount",
         ]
 
     def get_customer(self, obj):
@@ -383,7 +383,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "customization_notes", "message", "fabric_type",
             "swatch_required",                              # ← NEW
             "status", "valid_stages",
-            "payment_amount",
+            "payment_amount", "total_amount", "advance_amount",
             "unit_price", "hsn_code", "gst_percentage",
             "payment",
             "notes", "images", "stage_history",
@@ -467,6 +467,16 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
     status         = serializers.CharField()
     notes          = serializers.CharField(required=False, allow_blank=True)
     payment_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2,
+        required=False, allow_null=True,
+        min_value=0,
+    )
+    total_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2,
+        required=False, allow_null=True,
+        min_value=0,
+    )
+    advance_amount = serializers.DecimalField(
         max_digits=10, decimal_places=2,
         required=False, allow_null=True,
         min_value=0,

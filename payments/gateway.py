@@ -158,18 +158,26 @@ def _on_payment_failed(transaction):
 
 
 def _handle_order_payment_success(transaction):
-    """Update Order status to payment_done."""
+    """Update Order status to advance_paid or payment_done depending on notes."""
     from orders.models import Order, OrderStageHistory
 
     try:
         order = Order.objects.get(id=transaction.object_id)
-        order.status = "payment_done"
-        order.save(update_fields=["status", "updated_at"])
+        if transaction.notes and "advance" in transaction.notes.lower():
+            order.status = "advance_paid"
+            notes = f"Advance payment received. Ref: {transaction.payment_reference}"
+            order.payment_amount = None
+        else:
+            order.status = "payment_done"
+            notes = f"Final payment received. Ref: {transaction.payment_reference}"
+            order.payment_amount = None
+
+        order.save(update_fields=["status", "payment_amount", "updated_at"])
 
         OrderStageHistory.objects.create(
             order = order,
-            stage = "payment_done",
-            notes = f"Payment received. Ref: {transaction.payment_reference}",
+            stage = order.status,
+            notes = notes,
         )
     except Order.DoesNotExist:
         pass
@@ -261,3 +269,50 @@ def verify_payment_signature(razorpay_order_id, razorpay_payment_id, signature):
         return hmac.compare_digest(expected, signature)
     except Exception:
         return False
+
+
+def check_and_create_advance_payment(order):
+    """Check if advance payment transaction already exists; if not, create it."""
+    if not order.advance_amount:
+        return
+    from django.contrib.contenttypes.models import ContentType
+    from .models import PaymentTransaction
+    ct = ContentType.objects.get_for_model(order)
+    
+    if not PaymentTransaction.objects.filter(
+        content_type=ct,
+        object_id=order.id,
+        notes__icontains="advance",
+    ).exists():
+        create_payment(
+            content_object = order,
+            amount         = order.advance_amount,
+            payment_type   = "order",
+            paid_by        = order.customer_user,
+            notes          = f"Advance payment for {order.order_number}",
+        )
+
+
+def check_and_create_final_payment(order):
+    """Check if final payment transaction already exists; if not, create it."""
+    if not order.total_amount or not order.advance_amount:
+        return
+    final_amount = order.total_amount - order.advance_amount
+    if final_amount <= 0:
+        return
+    from django.contrib.contenttypes.models import ContentType
+    from .models import PaymentTransaction
+    ct = ContentType.objects.get_for_model(order)
+    
+    if not PaymentTransaction.objects.filter(
+        content_type=ct,
+        object_id=order.id,
+        notes__icontains="final",
+    ).exists():
+        create_payment(
+            content_object = order,
+            amount         = final_amount,
+            payment_type   = "order",
+            paid_by        = order.customer_user,
+            notes          = f"Final payment for {order.order_number}",
+        )

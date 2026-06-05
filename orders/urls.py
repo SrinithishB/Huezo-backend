@@ -11,6 +11,7 @@ from .views import (
     OrderNotesView,
     OrderInvoiceView,
     OrderAssignView,
+    OrderCancelView,
 )
 
 urlpatterns = [
@@ -38,4 +39,7 @@ urlpatterns = [
 
     # ── Admin: assign staff ────────────────────────────────────────── #
     path("orders/<uuid:id>/assign/", OrderAssignView.as_view(),       name="order-assign"),
+
+    # ── Cancel Order ────────────────────────────────────────────────── #
+    path("orders/<uuid:id>/cancel/", OrderCancelView.as_view(),       name="order-cancel"),
 ]

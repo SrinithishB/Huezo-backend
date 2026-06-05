@@ -28,6 +28,7 @@ class FabricType(models.TextChoices):
 
 PRIVATE_LABEL_STAGES = [
     ("order_placed",             "Order Placed"),
+    ("advance_paid",             "Advance Paid"),
     ("sampling_fabric",          "Sampling Fabric"),
     ("sampling_style",           "Sampling Style"),
     ("sampling_fit",             "Sampling Fit"),
@@ -46,6 +47,7 @@ PRIVATE_LABEL_STAGES = [
 
 WHITE_LABEL_STAGES = [
     ("order_placed",    "Order Placed"),
+    ("advance_paid",    "Advance Paid"),
     ("cutting",         "Cutting"),
     ("production",      "Production"),
     ("packing",         "Packing"),
@@ -62,6 +64,7 @@ FABRICS_STAGES_WITH_SWATCH = [
     ("swatch_received", "Swatch Received"),
     ("swatch_approved", "Swatch Approved"),
     ("swatch_rework",   "Swatch Rework"),
+    ("advance_paid",    "Advance Paid"),
     ("procurement",     "Procurement"),
     ("packing",         "Packing"),
     ("payment_pending", "Payment Pending"),
@@ -73,6 +76,7 @@ FABRICS_STAGES_WITH_SWATCH = [
 # Fabrics — without swatch (direct bulk order)
 FABRICS_STAGES_NO_SWATCH = [
     ("order_placed",    "Order Placed"),
+    ("advance_paid",    "Advance Paid"),
     ("procurement",     "Procurement"),
     ("packing",         "Packing"),
     ("payment_pending", "Payment Pending"),
@@ -86,7 +90,7 @@ FABRICS_STAGES = FABRICS_STAGES_WITH_SWATCH  # superset for choices
 
 ALL_STATUS_CHOICES = list({s[0]: s for s in
     PRIVATE_LABEL_STAGES + WHITE_LABEL_STAGES + FABRICS_STAGES
-}.values())
+}.values()) + [("cancelled", "Cancelled")]
 
 
 # ── ORDER ──────────────────────────────────────────────────────────────
@@ -217,6 +221,14 @@ class Order(models.Model):
 
     # Payment amount
     payment_amount = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+    )
+    total_amount = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+    )
+    advance_amount = models.DecimalField(
         max_digits=10, decimal_places=2,
         null=True, blank=True,
     )

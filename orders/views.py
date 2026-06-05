@@ -167,11 +167,29 @@ class OrderStatusUpdateView(APIView):
             new_status     = serializer.validated_data["status"]
             notes          = serializer.validated_data.get("notes", "")
             payment_amount = serializer.validated_data.get("payment_amount")
+            total_amount   = serializer.validated_data.get("total_amount")
+            advance_amount = serializer.validated_data.get("advance_amount")
 
             update_fields = ["status", "updated_at"]
             order.status  = new_status
 
-            if payment_amount is not None:
+            if total_amount is not None:
+                order.total_amount = total_amount
+                update_fields.append("total_amount")
+            if advance_amount is not None:
+                order.advance_amount = advance_amount
+                update_fields.append("advance_amount")
+
+            # Calculate active payment amount
+            if order.status == "order_placed" and order.advance_amount is not None:
+                order.payment_amount = order.advance_amount
+                if "payment_amount" not in update_fields:
+                    update_fields.append("payment_amount")
+            elif order.status == "payment_pending" and order.total_amount is not None and order.advance_amount is not None:
+                order.payment_amount = order.total_amount - order.advance_amount
+                if "payment_amount" not in update_fields:
+                    update_fields.append("payment_amount")
+            elif payment_amount is not None:
                 order.payment_amount = payment_amount
                 update_fields.append("payment_amount")
 
@@ -197,27 +215,24 @@ class OrderStatusUpdateView(APIView):
                 notes      = notes,
             )
 
-            # Auto-create Razorpay payment when status → payment_pending and amount is set
-            if new_status == "payment_pending" and order.payment_amount:
+            # Auto-create Razorpay payment when status → order_placed / payment_pending
+            if order.status == "order_placed" and order.advance_amount:
                 try:
                     from payments import gateway
-                    from payments.models import PaymentTransaction, PaymentStatus
-                    from django.contrib.contenttypes.models import ContentType
-                    ct = ContentType.objects.get_for_model(order)
-                    if not PaymentTransaction.objects.filter(
-                        content_type=ct, object_id=order.id, status=PaymentStatus.PENDING
-                    ).exists():
-                        gateway.create_payment(
-                            content_object = order,
-                            amount         = order.payment_amount,
-                            payment_type   = "order",
-                            paid_by        = order.customer_user,
-                            notes          = f"Payment for {order.order_number}",
-                        )
+                    gateway.check_and_create_advance_payment(order)
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).error(
-                        f"Payment creation failed for {order.order_number}: {e}"
+                        f"Advance payment creation failed for {order.order_number}: {e}"
+                    )
+            elif order.status == "payment_pending":
+                try:
+                    from payments import gateway
+                    gateway.check_and_create_final_payment(order)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(
+                        f"Final payment creation failed for {order.order_number}: {e}"
                     )
 
             # Send stage notification to customer
@@ -332,8 +347,7 @@ class OrderInvoiceView(APIView):
     """
     GET /api/orders/<uuid>/invoice/
     Returns a branded PDF invoice.
-    Only available once order status is payment_done / dispatch / delivered.
-    Customer can only download their own order invoice.
+    Can be type=advance or type=final.
     """
     permission_classes = [IsAuthenticated]
 
@@ -354,21 +368,39 @@ class OrderInvoiceView(APIView):
         except Order.DoesNotExist:
             return Response({"error": "Order not found."}, status=404)
 
-        if order.status not in ("payment_done", "dispatch", "delivered"):
-            return Response(
-                {"error": "Invoice is only available after payment is completed."},
-                status=400,
-            )
+        invoice_type = request.query_params.get("type", "final")
+
+        if invoice_type == "advance":
+            if order.status in ("order_placed", "cancelled"):
+                return Response(
+                    {"error": "Advance invoice is only available after advance payment is completed."},
+                    status=400,
+                )
+        else:
+            if order.status not in ("payment_done", "dispatch", "delivered"):
+                return Response(
+                    {"error": "Final invoice is only available after final payment is completed."},
+                    status=400,
+                )
 
         # ── Fetch payment transaction ──────────────────────────────────
         from payments.models import PaymentTransaction
         from django.contrib.contenttypes.models import ContentType
         ct = ContentType.objects.get_for_model(order)
-        transaction = PaymentTransaction.objects.filter(
-            content_type=ct,
-            object_id=order.id,
-            status="paid",
-        ).order_by("-paid_at").first()
+        
+        if invoice_type == "advance":
+            transaction = PaymentTransaction.objects.filter(
+                content_type=ct,
+                object_id=order.id,
+                status="paid",
+                notes__icontains="advance",
+            ).order_by("-paid_at").first()
+        else:
+            transaction = PaymentTransaction.objects.filter(
+                content_type=ct,
+                object_id=order.id,
+                status="paid",
+            ).exclude(notes__icontains="advance").order_by("-paid_at").first()
 
         # ── Fetch customer profile ─────────────────────────────────────
         try:
@@ -377,7 +409,7 @@ class OrderInvoiceView(APIView):
             profile = None
 
         # ── Generate & return PDF ──────────────────────────────────────
-        pdf_bytes = _generate_invoice_pdf(order, transaction, profile)
+        pdf_bytes = _generate_invoice_pdf(order, transaction, profile, invoice_type=invoice_type)
         response  = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = (
             f'attachment; filename="Invoice-{order.order_number}.pdf"'
@@ -387,9 +419,9 @@ class OrderInvoiceView(APIView):
 
 # ── PDF GENERATION ─────────────────────────────────────────────────────
 
-def _generate_invoice_pdf(order, transaction, profile):
+def _generate_invoice_pdf(order, transaction, profile, invoice_type="final"):
     """
-    Build a branded A4 TAX INVOICE PDF using ReportLab.
+    Build a branded A4 TAX INVOICE or ADVANCE RECEIPT PDF using ReportLab.
     Matches reference format: logo, GST table with CGST/SGST breakdown.
     """
     from io import BytesIO
@@ -434,16 +466,25 @@ def _generate_invoice_pdf(order, transaction, profile):
         return ParagraphStyle(name, **kwargs)
 
     # ── GST Calculations ───────────────────────────────────────────────
-    qty          = Decimal(str(order.total_quantity))
-    unit_price   = Decimal(str(order.unit_price))   if order.unit_price   else Decimal("0")
     gst_pct      = Decimal(str(order.gst_percentage)) if order.gst_percentage else Decimal("5")
     half_gst     = gst_pct / 2
-    subtotal     = (unit_price * qty).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    cgst_amt     = (subtotal * half_gst / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    sgst_amt     = (subtotal * half_gst / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    total_exact  = subtotal + cgst_amt + sgst_amt
-    total_round  = total_exact.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-    rounding_adj = total_round - total_exact
+
+    if invoice_type == "advance":
+        total_round  = Decimal(str(order.advance_amount)) if order.advance_amount else Decimal("0")
+        subtotal     = (total_round / (Decimal("1") + gst_pct / Decimal("100"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        cgst_amt     = (subtotal * half_gst / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        sgst_amt     = (total_round - subtotal - cgst_amt).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        total_exact  = total_round
+        rounding_adj = Decimal("0")
+    else:
+        qty          = Decimal(str(order.total_quantity))
+        unit_price   = Decimal(str(order.unit_price))   if order.unit_price   else Decimal("0")
+        subtotal     = (unit_price * qty).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        cgst_amt     = (subtotal * half_gst / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        sgst_amt     = (subtotal * half_gst / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        total_exact  = subtotal + cgst_amt + sgst_amt
+        total_round  = total_exact.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        rounding_adj = total_round - total_exact
 
     # ── Document setup ─────────────────────────────────────────────────
     buffer = BytesIO()
@@ -477,10 +518,11 @@ def _generate_invoice_pdf(order, transaction, profile):
         logo_cell = Paragraph("<b>HUEZO</b>",
                               ps("fb", fontSize=20, fontName="Helvetica-Bold", textColor=C_BURNT))
 
+    title_text = "ADVANCE RECEIPT" if invoice_type == "advance" else "TAX INVOICE"
     hdr = Table([[
         logo_cell,
         Table([[
-            Paragraph("<b>TAX INVOICE</b>",
+            Paragraph(f"<b>{title_text}</b>",
                       ps("ti", fontSize=20, fontName="Helvetica-Bold",
                          textColor=C_BURNT, alignment=TA_RIGHT)),
         ]], colWidths=[W * 0.6]),
@@ -587,7 +629,8 @@ def _generate_invoice_pdf(order, transaction, profile):
     unit = "meters" if order.order_type == "fabrics" else "pcs"
 
     # Build description string
-    desc_parts = [humanise(order.order_type)]
+    desc_suffix = " (Advance Payment)" if invoice_type == "advance" else ""
+    desc_parts = [humanise(order.order_type) + desc_suffix]
     if order.garment_type:
         desc_parts.append(order.garment_type)
     if order.style_name:
@@ -626,12 +669,19 @@ def _generate_invoice_pdf(order, transaction, profile):
         Paragraph("<b>Amount</b>",      th(TA_RIGHT)),
     ]
 
+    if invoice_type == "advance":
+        qty_val = Decimal("1.00")
+        rate_val = subtotal
+    else:
+        qty_val = Decimal(str(order.total_quantity))
+        rate_val = Decimal(str(order.unit_price)) if order.unit_price else Decimal("0")
+
     data_row = [
         Paragraph("1",                                   s_body),
         Paragraph(desc_str.replace("\n", "<br/>"),       s_muted),
         Paragraph(hsn,                                   ps("hc", fontSize=8, fontName="Helvetica", textColor=C_DARK, alignment=TA_CENTER)),
-        Paragraph(f"{order.total_quantity:.2f}",         s_right),
-        Paragraph(f"{unit_price:,.2f}",                  s_right),
+        Paragraph(f"{qty_val:.2f}",                      s_right),
+        Paragraph(f"{rate_val:,.2f}",                    s_right),
         Paragraph(f"{half_gst:.1f}%",                    ps("cp", fontSize=8, fontName="Helvetica", textColor=C_DARK, alignment=TA_CENTER)),
         Paragraph(f"{cgst_amt:,.2f}",                    s_right),
         Paragraph(f"{half_gst:.1f}%",                    ps("sp", fontSize=8, fontName="Helvetica", textColor=C_DARK, alignment=TA_CENTER)),
@@ -661,18 +711,31 @@ def _generate_invoice_pdf(order, transaction, profile):
     #  TOTALS — Items count left, breakdown right
     # ══════════════════════════════════════════════════════════════════
     items_count = Paragraph(
-        f"Items in Total {order.total_quantity:.2f}",
+        f"Items in Total {qty_val:.2f}",
         ps("ic", fontSize=9, fontName="Helvetica-Bold", textColor=C_DARK),
     )
 
-    total_rows = [
-        ("Sub Total",                      f"{subtotal:,.2f}",      False),
-        (f"CGST{half_gst} ({half_gst}%)",  f"{cgst_amt:,.2f}",     False),
-        (f"SGST{half_gst} ({half_gst}%)",  f"{sgst_amt:,.2f}",     False),
-        ("Rounding",                        f"{rounding_adj:+.2f}", False),
-        ("Total",                           f"Rs.{total_round:,.2f}", True),
-        ("Balance Due",                     f"Rs.{total_round:,.2f}", True),
-    ]
+    if invoice_type == "advance":
+        total_rows = [
+            ("Sub Total",                      f"{subtotal:,.2f}",      False),
+            (f"CGST ({half_gst}%)",            f"{cgst_amt:,.2f}",     False),
+            (f"SGST ({half_gst}%)",            f"{sgst_amt:,.2f}",     False),
+            ("Total (Advance Paid)",            f"Rs.{total_round:,.2f}", True),
+            ("Balance Due",                     "Rs.0.00", True),
+        ]
+    else:
+        advance_paid = Decimal(str(order.advance_amount)) if order.advance_amount else Decimal("0")
+        final_balance_paid = total_round - advance_paid
+        total_rows = [
+            ("Sub Total",                      f"{subtotal:,.2f}",      False),
+            (f"CGST ({half_gst}%)",            f"{cgst_amt:,.2f}",     False),
+            (f"SGST ({half_gst}%)",            f"{sgst_amt:,.2f}",     False),
+            ("Rounding",                        f"{rounding_adj:+.2f}", False),
+            ("Total Order Amount",              f"Rs.{total_round:,.2f}", True),
+            ("Less: Advance Paid",              f"Rs.{advance_paid:,.2f}", False),
+            ("Final Balance Paid",              f"Rs.{final_balance_paid:,.2f}", True),
+            ("Balance Due",                     "Rs.0.00", True),
+        ]
 
     tr_data = []
     for label, value, bold in total_rows:
@@ -686,12 +749,17 @@ def _generate_invoice_pdf(order, transaction, profile):
         ])
 
     totals_tbl = Table(tr_data, colWidths=[40*mm, 32*mm])
-    totals_tbl.setStyle(TableStyle([
+    
+    t_style = [
         ("TOPPADDING",    (0, 0), (-1, -1), 3),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LINEABOVE",     (0, 4), (-1, 4),  1, C_STROKE),
-        ("LINEABOVE",     (0, 5), (-1, 5),  0.5, C_STROKE),
-    ]))
+    ]
+    for idx, (label, _, bold) in enumerate(total_rows):
+        if bold:
+            t_style.append(("LINEABOVE", (0, idx), (-1, idx), 1 if label.startswith("Total") or label.startswith("Final") else 0.5, C_STROKE))
+        elif label.startswith("Less"):
+            t_style.append(("LINEABOVE", (0, idx), (-1, idx), 0.5, C_STROKE))
+    totals_tbl.setStyle(TableStyle(t_style))
 
     total_outer = Table(
         [[items_count, totals_tbl]],
@@ -733,9 +801,10 @@ def _generate_invoice_pdf(order, transaction, profile):
     # ══════════════════════════════════════════════════════════════════
     #  PAYMENT RECEIVED BANNER
     # ══════════════════════════════════════════════════════════════════
+    banner_text = "&#10003;  ADVANCE PAYMENT RECEIVED" if invoice_type == "advance" else "&#10003;  PAYMENT RECEIVED"
     banner = Table(
         [[Paragraph(
-            "&#10003;  PAYMENT RECEIVED",
+            banner_text,
             ps("paid", fontSize=11, fontName="Helvetica-Bold",
                textColor=C_GREEN, alignment=TA_CENTER),
         )]],
@@ -823,3 +892,57 @@ class OrderAssignView(APIView):
                 "role": assigned.role,
             } if assigned else None,
         })
+
+
+class OrderCancelView(APIView):
+    """
+    POST /api/orders/<uuid>/cancel/
+    Allows customer or staff to cancel the order before the advance is paid.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, id):
+        from payments.models import PaymentTransaction, PaymentStatus
+        from django.contrib.contenttypes.models import ContentType
+
+        try:
+            if request.user.role == "customer":
+                order = Order.objects.get(id=id, customer_user=request.user)
+            else:
+                order = Order.objects.get(id=id)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Cancellation is only allowed before advance is paid
+        # Check 1: Must be in 'order_placed' status
+        if order.status != "order_placed":
+            return Response(
+                {"error": "Order cannot be cancelled because it is already in progress or completed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check 2: Must not have any paid transaction
+        ct = ContentType.objects.get_for_model(order)
+        if PaymentTransaction.objects.filter(
+            content_type=ct,
+            object_id=order.id,
+            status=PaymentStatus.PAID,
+        ).exists():
+            return Response(
+                {"error": "Order cannot be cancelled because the advance payment has already been made."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Cancel order
+        order.status = "cancelled"
+        order.payment_amount = None
+        order.save(update_fields=["status", "payment_amount", "updated_at"])
+
+        OrderStageHistory.objects.create(
+            order      = order,
+            stage      = "cancelled",
+            changed_by = request.user,
+            notes      = f"Order cancelled by {request.user.role} ({request.user.email}).",
+        )
+
+        return Response({"status": "ok", "message": "Order has been cancelled successfully."})
