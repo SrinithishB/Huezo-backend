@@ -354,6 +354,12 @@ class OrderListSerializer(serializers.ModelSerializer):
             thumb = obj.fabric_catalogue.images.filter(is_thumbnail=True).first()
             if thumb and thumb.image:
                 return request.build_absolute_uri(thumb.image.url) if request else thumb.image.url
+        
+        # Fallback to the first attached order image (e.g. for Private Label orders)
+        first_img = obj.images.first()
+        if first_img and first_img.image:
+            return request.build_absolute_uri(first_img.image.url) if request else first_img.image.url
+            
         return None
 
 
