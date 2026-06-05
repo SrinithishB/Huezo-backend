@@ -22,6 +22,7 @@ urlpatterns = [
 
     # ── Create orders (staff on behalf of customer) ────────────────── #
     path("orders/staff/wl/",      StaffOrderCreateView.as_view(), {"order_type": "wl"},      name="staff-order-create-wl"),
+    path("orders/staff/pl/",      StaffOrderCreateView.as_view(), {"order_type": "pl"},      name="staff-order-create-pl"),
     path("orders/staff/fabrics/", StaffOrderCreateView.as_view(), {"order_type": "fabrics"}, name="staff-order-create-fabrics"),
 
     # ── List & Detail ──────────────────────────────────────────────── #

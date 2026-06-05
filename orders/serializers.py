@@ -708,6 +708,101 @@ class StaffFabricsOrderCreateSerializer(serializers.Serializer):
         return order
 
 
+class StaffPLOrderCreateSerializer(serializers.Serializer):
+    """
+    Staff / Admin places a Private Label order on behalf of a customer.
+    """
+    customer_id    = serializers.UUIDField(help_text="UUID of the customer account")
+    style_name     = serializers.CharField(max_length=200)
+    total_quantity = serializers.IntegerField(min_value=1)
+    total_amount   = serializers.DecimalField(max_digits=10, decimal_places=2)
+    advance_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    for_category   = serializers.ChoiceField(choices=["women", "men", "kids"], default="women")
+    garment_type   = serializers.CharField(max_length=100, default="custom")
+    size_breakdown = serializers.CharField(required=False, allow_blank=True)
+    notes          = serializers.CharField(required=False, allow_blank=True)
+    images         = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+    )
+
+    def validate_customer_id(self, value):
+        User = get_user_model()
+        try:
+            user = User.objects.get(id=value, is_active=True)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Customer not found.")
+        if user.role != "customer":
+            raise serializers.ValidationError("Selected user is not a customer.")
+        return user
+
+    def validate_size_breakdown(self, value):
+        if not value:
+            return []
+        import json
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError(
+                    'Invalid JSON. Expected: [{"size":"S","quantity":60}]'
+                )
+        for item in value:
+            if "size" not in item or "quantity" not in item:
+                raise serializers.ValidationError('Each item must have "size" and "quantity".')
+            if int(item["quantity"]) <= 0:
+                raise serializers.ValidationError("Quantity must be greater than 0.")
+        return value
+
+    def create(self, validated_data):
+        from .models import OrderStageHistory, OrderType
+        images_data    = validated_data.pop("images", [])
+        customer       = validated_data["customer_id"]
+        size_breakdown = validated_data.get("size_breakdown", [])
+        request        = self.context["request"]
+
+        order = Order.objects.create(
+            order_type      = OrderType.PRIVATE_LABEL,
+            customer_user   = customer,
+            created_by_user = request.user,
+            assigned_to     = request.user,
+            style_name      = validated_data["style_name"],
+            total_quantity  = validated_data["total_quantity"],
+            total_amount    = validated_data["total_amount"],
+            advance_amount  = validated_data["advance_amount"],
+            payment_amount  = validated_data["advance_amount"],
+            for_category    = validated_data["for_category"],
+            garment_type    = validated_data["garment_type"],
+            size_breakdown  = size_breakdown,
+            notes           = validated_data.get("notes", ""),
+        )
+
+        for image_file in images_data:
+            OrderImage.objects.create(
+                order=order, image=image_file, file_name=image_file.name,
+            )
+
+        OrderStageHistory.objects.create(
+            order      = order,
+            stage      = "order_placed",
+            changed_by = request.user,
+            notes      = f"Private Label order placed by staff ({request.user.email}) on behalf of customer.",
+        )
+
+        # Trigger Razorpay advance payment checkout link generation
+        try:
+            from payments import gateway
+            gateway.check_and_create_advance_payment(order)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(
+                f"Advance payment creation failed for {order.order_number}: {e}"
+            )
+
+        return order
+
+
 # ── ASSIGN STAFF ───────────────────────────────────────────────────────
 
 class OrderAssignSerializer(serializers.Serializer):

@@ -16,6 +16,7 @@ from .serializers import (
     FabricsOrderCreateSerializer,
     StaffWLOrderCreateSerializer,
     StaffFabricsOrderCreateSerializer,
+    StaffPLOrderCreateSerializer,
     OrderListSerializer,
     OrderDetailSerializer,
     OrderStatusUpdateSerializer,
@@ -308,13 +309,15 @@ class OrderNotesView(APIView):
 class StaffOrderCreateView(APIView):
     """
     POST /api/orders/staff/wl/      — Staff places White Label order for a customer
-    POST /api/orders/staff/fabrics/ — Staff places Fabrics order for a customer
+    POST /api/orders/staff/pl/      — Staff places Private Label order for a customer
+    IMAGE UPLOAD is done via multipart.
     """
     permission_classes = [IsAuthenticated, IsAdminOrStaff]
     parser_classes     = [MultiPartParser, FormParser, JSONParser]
 
     SERIALIZER_MAP = {
         "wl":      StaffWLOrderCreateSerializer,
+        "pl":      StaffPLOrderCreateSerializer,
         "fabrics": StaffFabricsOrderCreateSerializer,
     }
 
@@ -322,7 +325,7 @@ class StaffOrderCreateView(APIView):
         serializer_class = self.SERIALIZER_MAP.get(order_type)
         if not serializer_class:
             return Response(
-                {"error": "Invalid order type. Use wl or fabrics."},
+                {"error": "Invalid order type. Use wl, pl, or fabrics."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
