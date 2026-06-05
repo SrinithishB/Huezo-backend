@@ -74,9 +74,15 @@ class OrderCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if hasattr(request.data, "dict"):
+            data = request.data.dict()
+        else:
+            data = dict(request.data)
         images_data = request.FILES.getlist("images")
-        serializer  = serializer_class(
-            data    = {**request.data, "images": images_data},
+        data["images"] = images_data
+
+        serializer = serializer_class(
+            data    = data,
             context = {"request": request},
         )
         if serializer.is_valid():
@@ -329,9 +335,15 @@ class StaffOrderCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if hasattr(request.data, "dict"):
+            data = request.data.dict()
+        else:
+            data = dict(request.data)
         images_data = request.FILES.getlist("images")
-        serializer  = serializer_class(
-            data    = {**request.data, "images": images_data},
+        data["images"] = images_data
+
+        serializer = serializer_class(
+            data    = data,
             context = {"request": request},
         )
         if serializer.is_valid():
