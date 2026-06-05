@@ -2,6 +2,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils import timezone
@@ -90,7 +91,7 @@ def export_enquiries_to_excel(queryset, filename):
 
 # ── INLINE ─────────────────────────────────────────────────────────────
 
-class EnquiryImageInline(admin.TabularInline):
+class EnquiryImageInline(TabularInline):
     model           = EnquiryImage
     extra           = 0
     readonly_fields = ['id', 'image_preview', 'file_name', 'file_size_bytes', 'mime_type', 'uploaded_at']
@@ -109,7 +110,7 @@ class EnquiryImageInline(admin.TabularInline):
 # ── ENQUIRY ADMIN ──────────────────────────────────────────────────────
 
 @admin.register(Enquiry)
-class EnquiryAdmin(admin.ModelAdmin):
+class EnquiryAdmin(ModelAdmin):
     list_display = [
         'enquiry_number', 'order_type', 'full_name', 'phone',
         'email', 'brand_name', 'for_category', 'status', 'unread_badge',
@@ -211,7 +212,7 @@ class EnquiryAdmin(admin.ModelAdmin):
 
 
 @admin.register(EnquiryImage)
-class EnquiryImageAdmin(admin.ModelAdmin):
+class EnquiryImageAdmin(ModelAdmin):
     list_display    = ['file_name', 'enquiry', 'image_preview', 'file_size_bytes', 'mime_type', 'uploaded_at']
     search_fields   = ['file_name', 'enquiry__enquiry_number']
     readonly_fields = ['id', 'image_preview', 'uploaded_at']

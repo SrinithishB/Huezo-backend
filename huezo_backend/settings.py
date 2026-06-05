@@ -37,7 +37,8 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost", ".o
 # Application definition
 
 INSTALLED_APPS = [
-    'jazzmin',
+    'unfold',
+    'unfold.contrib.filters',
     'notifications',
     'accounts',
     'banners',
@@ -289,67 +290,99 @@ LOGGING = {
 }
 
 
-# ── Jazzmin Settings (Admin Panel UI/UX Customization) ─────────────────
-JAZZMIN_SETTINGS = {
-    "site_title": "Huezo Admin",
-    "site_header": "Huezo",
-    "site_brand": "Huezo Admin",
-    "site_logo_classes": "img-circle",
-    "welcome_sign": "Welcome to Huezo Administration",
-    "copyright": "Huezo Ltd",
-    "search_model": ["accounts.User", "orders.Order"],
-    "show_sidebar": True,
-    "navigation_expanded": True,
-    "hide_apps": [],
-    "hide_models": [],
-    "order_with_respect_to": ["orders", "catalogue", "enquiries", "accounts"],
-    "icons": {
-        "auth": "fas fa-users-cog",
-        "accounts.User": "fas fa-user-shield",
-        "accounts.Customer": "fas fa-address-card",
-        "orders.Order": "fas fa-shopping-bag",
-        "orders.OrderStageHistory": "fas fa-history",
-        "orders.OrderImage": "fas fa-image",
-        "orders.OrderNote": "fas fa-sticky-note",
-        "catalogue.WLPrototype": "fas fa-cut",
-        "catalogue.FabricsCatalogue": "fas fa-border-style",
-        "catalogue.FabricImage": "fas fa-file-image",
-        "enquiries.Enquiry": "fas fa-question-circle",
-        "notifications.Notification": "fas fa-bell",
-        "banners.Banner": "fas fa-ad",
-    },
-    "default_icon_parents": "fas fa-chevron-circle-right",
-    "default_icon_children": "fas fa-circle",
-    "related_modal_active": True,
-    "show_ui_builder": False,
-}
+# ── Unfold Admin Theme Customization ───────────────────────────────────
+from django.urls import reverse_lazy
 
-JAZZMIN_UI_TWEAKS = {
-    "navbar_small_text": False,
-    "footer_small_text": False,
-    "body_small_text": False,
-    "brand_small_text": False,
-    "brand_colour": "navbar-maroon",
-    "actions_colour": "navbar-maroon",
-    "navbar": "navbar-maroon navbar-dark",
-    "no_navbar_border": False,
-    "navbar_double_row": False,
-    "sidebar_shadow": True,
-    "sidebar": "sidebar-dark-maroon",
-    "sidebar_nav_small_text": False,
-    "sidebar_disable_expand": False,
-    "sidebar_nav_child_indent": True,
-    "sidebar_nav_compact_style": False,
-    "sidebar_nav_legacy_style": False,
-    "sidebar_nav_flat_style": False,
-    "theme": "flatly",
-    "dark_mode_theme": None,
-    "button_classes": {
-        "primary": "btn-primary",
-        "secondary": "btn-secondary",
-        "info": "btn-info",
-        "warning": "btn-warning",
-        "danger": "btn-danger",
-        "success": "btn-success"
-    }
+UNFOLD = {
+    "SITE_TITLE": "Huezo Administration",
+    "SITE_HEADER": "Huezo Admin",
+    "SITE_SYMBOL": "checkroom", # clothes/hangers icon
+    "SHOW_HISTORY": True,
+    "SHOW_SIDEBAR_FILTER": True,
+    "COLORS": {
+        "primary": {
+            "50": "250 245 245",
+            "100": "254 226 226",
+            "200": "254 205 205",
+            "300": "252 165 165",
+            "400": "248 113 113",
+            "500": "153 27 27", # Primary Accent (Maroon: #991b1b)
+            "600": "127 29 29",
+            "700": "99 26 26",
+            "800": "76 25 25",
+            "900": "69 26 26",
+            "950": "45 15 15",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "navigation": [
+            {
+                "title": "Business Flow",
+                "items": [
+                    {
+                        "title": "Orders",
+                        "icon": "shopping_bag",
+                        "link": reverse_lazy("admin:orders_order_changelist"),
+                    },
+                    {
+                        "title": "Enquiries",
+                        "icon": "mail",
+                        "link": reverse_lazy("admin:enquiries_enquiry_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Catalogues & Media",
+                "items": [
+                    {
+                        "title": "White Label Catalogue",
+                        "icon": "apparel",
+                        "link": reverse_lazy("admin:catalogue_wlprototype_changelist"),
+                    },
+                    {
+                        "title": "Fabrics Catalogue",
+                        "icon": "texture",
+                        "link": reverse_lazy("admin:catalogue_fabricscatalogue_changelist"),
+                    },
+                    {
+                        "title": "Banners",
+                        "icon": "ad",
+                        "link": reverse_lazy("admin:banners_banner_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Accounts & Roles",
+                "items": [
+                    {
+                        "title": "Users",
+                        "icon": "person",
+                        "link": reverse_lazy("admin:accounts_user_changelist"),
+                    },
+                    {
+                        "title": "Customers Profile",
+                        "icon": "contact_page",
+                        "link": reverse_lazy("admin:accounts_customer_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Notifications & Logs",
+                "items": [
+                    {
+                        "title": "Notifications",
+                        "icon": "notifications",
+                        "link": reverse_lazy("admin:notifications_notification_changelist"),
+                    },
+                    {
+                        "title": "Order History",
+                        "icon": "history",
+                        "link": reverse_lazy("admin:orders_orderstagehistory_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
 }

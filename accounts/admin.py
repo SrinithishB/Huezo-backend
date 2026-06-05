@@ -1,10 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from unfold.admin import ModelAdmin
 from .models import User, Customer
 
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin):
+class UserAdmin(BaseUserAdmin, ModelAdmin):
     list_display    = ["email", "role", "is_active", "is_staff", "is_superuser", "created_at"]
     list_filter     = ["role", "is_active", "is_staff"]
     search_fields   = ["email"]
@@ -66,7 +67,7 @@ class UserAdmin(BaseUserAdmin):
 
 
 @admin.register(Customer)
-class CustomerAdmin(admin.ModelAdmin):
+class CustomerAdmin(ModelAdmin):
     list_display    = ["brand_name", "contact_name", "phone", "user", "city", "created_at"]
     search_fields   = ["brand_name", "contact_name", "phone", "user__email"]
     list_filter     = ["city", "state", "country"]

@@ -1,11 +1,12 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 from django.utils.html import format_html
 
 from .models import Banner
 
 
 @admin.register(Banner)
-class BannerAdmin(admin.ModelAdmin):
+class BannerAdmin(ModelAdmin):
     list_display  = ["title", "image_preview", "sort_order", "is_active", "link_url", "created_at"]
     list_filter   = ["is_active"]
     search_fields = ["title"]

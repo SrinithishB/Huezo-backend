@@ -4,6 +4,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils import timezone
@@ -96,7 +97,7 @@ def export_orders_to_excel(queryset, filename):
 
 # ── INLINES ────────────────────────────────────────────────────────────
 
-class OrderNoteInline(admin.TabularInline):
+class OrderNoteInline(TabularInline):
     model           = OrderNote
     extra           = 1
     fields          = ["note", "added_by", "created_at"]
@@ -111,7 +112,7 @@ class OrderNoteInline(admin.TabularInline):
         super().save_model(request, obj, form, change)
 
 
-class OrderStageHistoryInline(admin.TabularInline):
+class OrderStageHistoryInline(TabularInline):
     model           = OrderStageHistory
     extra           = 0
     readonly_fields = ["stage", "changed_by", "notes", "changed_at"]
@@ -122,7 +123,7 @@ class OrderStageHistoryInline(admin.TabularInline):
         return False
 
 
-class OrderImageInline(admin.TabularInline):
+class OrderImageInline(TabularInline):
     model           = OrderImage
     extra           = 0
     readonly_fields = ["image_preview", "file_name", "uploaded_at"]
@@ -141,7 +142,7 @@ class OrderImageInline(admin.TabularInline):
 # ── ORDER ADMIN ────────────────────────────────────────────────────────
 
 @admin.register(Order)
-class OrderAdmin(admin.ModelAdmin):
+class OrderAdmin(ModelAdmin):
     list_display  = [
         "order_number", "order_type", "customer_user",
         "assigned_to", "status", "swatch_badge",
@@ -602,7 +603,7 @@ class OrderAdmin(admin.ModelAdmin):
 # ── STAGE HISTORY ADMIN ────────────────────────────────────────────────
 
 @admin.register(OrderStageHistory)
-class OrderStageHistoryAdmin(admin.ModelAdmin):
+class OrderStageHistoryAdmin(ModelAdmin):
     list_display    = ["order", "stage", "changed_by", "notes", "changed_at"]
     list_filter     = ["stage"]
     search_fields   = ["order__order_number"]
@@ -619,7 +620,7 @@ class OrderStageHistoryAdmin(admin.ModelAdmin):
 # ── ORDER IMAGE ADMIN ──────────────────────────────────────────────────
 
 @admin.register(OrderImage)
-class OrderImageAdmin(admin.ModelAdmin):
+class OrderImageAdmin(ModelAdmin):
     list_display    = ["file_name", "order", "image_preview", "uploaded_at"]
     search_fields   = ["file_name", "order__order_number"]
     readonly_fields = ["id", "image_preview", "order", "file_name", "uploaded_at"]

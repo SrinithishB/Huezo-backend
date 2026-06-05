@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
 from django.utils.html import format_html
 from .models import WLPrototype, WLPrototypeImage
 
@@ -17,7 +18,7 @@ class WLPrototypeForm(forms.ModelForm):
         }
 
 
-class WLPrototypeImageInline(admin.TabularInline):
+class WLPrototypeImageInline(TabularInline):
     model           = WLPrototypeImage
     extra           = 1
     fields          = ["image", "image_preview", "sort_order", "uploaded_at"]
@@ -35,7 +36,7 @@ class WLPrototypeImageInline(admin.TabularInline):
 
 
 @admin.register(WLPrototype)
-class WLPrototypeAdmin(admin.ModelAdmin):
+class WLPrototypeAdmin(ModelAdmin):
     form = WLPrototypeForm
     list_display    = [
         "prototype_code", "garment_type", "for_gender",
@@ -90,7 +91,7 @@ class WLPrototypeAdmin(admin.ModelAdmin):
 
 
 @admin.register(WLPrototypeImage)
-class WLPrototypeImageAdmin(admin.ModelAdmin):
+class WLPrototypeImageAdmin(ModelAdmin):
     list_display    = ["prototype", "image_preview", "sort_order", "uploaded_at"]
     list_filter     = ["prototype"]
     ordering        = ["prototype", "sort_order"]
@@ -113,7 +114,7 @@ class WLPrototypeImageAdmin(admin.ModelAdmin):
 from .models import FabricsCatalogue, FabricsCatalogueImage
 
 
-class FabricImageInline(admin.TabularInline):
+class FabricImageInline(TabularInline):
     model           = FabricsCatalogueImage
     extra           = 1
     fields          = ["image", "image_preview", "is_thumbnail", "sort_order", "uploaded_at"]
@@ -150,7 +151,7 @@ class FabricsCatalogueForm(forms.ModelForm):
         }
 
 @admin.register(FabricsCatalogue)
-class FabricsCatalogueAdmin(admin.ModelAdmin):
+class FabricsCatalogueAdmin(ModelAdmin):
     form = FabricsCatalogueForm
     list_display    = [
         "fabric_name", "fabric_type", "effective_moq_display",
@@ -212,7 +213,7 @@ class FabricsCatalogueAdmin(admin.ModelAdmin):
 
 
 @admin.register(FabricsCatalogueImage)
-class FabricsCatalogueImageAdmin(admin.ModelAdmin):
+class FabricsCatalogueImageAdmin(ModelAdmin):
     list_display    = ["catalogue", "image_preview", "is_thumbnail", "sort_order", "uploaded_at"]
     list_filter     = ["is_thumbnail", "catalogue"]
     ordering        = ["catalogue", "-is_thumbnail", "sort_order"]

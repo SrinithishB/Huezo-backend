@@ -1,9 +1,10 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 from .models import PaymentTransaction
 
 
 @admin.register(PaymentTransaction)
-class PaymentTransactionAdmin(admin.ModelAdmin):
+class PaymentTransactionAdmin(ModelAdmin):
     list_display = ["id","payment_type","paid_by","amount","currency","status","razorpay_order_id","payment_reference","created_at","paid_at"]
     list_filter = ["payment_type","status","currency"]
     search_fields = ["razorpay_order_id","payment_reference","paid_by__email"]

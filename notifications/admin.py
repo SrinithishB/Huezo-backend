@@ -1,9 +1,10 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 from .models import FCMDevice, Notification
  
  
 @admin.register(FCMDevice)
-class FCMDeviceAdmin(admin.ModelAdmin):
+class FCMDeviceAdmin(ModelAdmin):
     list_display    = ["user", "device_id", "is_active", "created_at", "updated_at"]
     list_filter     = ["is_active"]
     search_fields   = ["user__email", "device_id", "fcm_token"]
@@ -22,7 +23,7 @@ class FCMDeviceAdmin(admin.ModelAdmin):
  
  
 @admin.register(Notification)
-class NotificationAdmin(admin.ModelAdmin):
+class NotificationAdmin(ModelAdmin):
     list_display    = ["user", "title", "is_read", "created_at"]
     list_filter     = ["is_read"]
     search_fields   = ["user__email", "title", "body"]
