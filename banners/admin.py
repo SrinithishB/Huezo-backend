@@ -1,13 +1,14 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 from django.utils.html import format_html
+from huezo_backend.admin_mixins import RowActionsMixin
 
 from .models import Banner
 
 
 @admin.register(Banner)
-class BannerAdmin(ModelAdmin):
-    list_display  = ["title", "image_preview", "sort_order", "is_active", "link_url", "created_at"]
+class BannerAdmin(RowActionsMixin, ModelAdmin):
+    list_display  = ["title", "image_preview", "sort_order", "is_active", "link_url", "created_at", "row_actions"]
     list_filter   = ["is_active"]
     search_fields = ["title"]
     list_editable = ["sort_order", "is_active"]

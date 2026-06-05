@@ -7,6 +7,7 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+from huezo_backend.admin_mixins import RowActionsMixin
 from django.utils import timezone
 from django.http import HttpResponse
 from django.contrib import messages
@@ -142,13 +143,13 @@ class OrderImageInline(TabularInline):
 # ── ORDER ADMIN ────────────────────────────────────────────────────────
 
 @admin.register(Order)
-class OrderAdmin(ModelAdmin):
+class OrderAdmin(RowActionsMixin, ModelAdmin):
     list_display  = [
         "order_number", "order_type", "customer_user",
         "assigned_to", "status", "swatch_badge",
         "total_quantity", "for_category",
         "garment_type", "payment_status_display",
-        "invoice_summary", "created_at",
+        "invoice_summary", "created_at", "row_actions",
     ]
     list_filter   = [
         "order_type", "status",

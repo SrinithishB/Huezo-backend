@@ -1,12 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
+from huezo_backend.admin_mixins import RowActionsMixin
 from .models import User, Customer
 
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin, ModelAdmin):
-    list_display    = ["email", "role", "is_active", "is_staff", "is_superuser", "created_at"]
+class UserAdmin(RowActionsMixin, BaseUserAdmin, ModelAdmin):
+    list_display    = ["email", "role", "is_active", "is_staff", "is_superuser", "created_at", "row_actions"]
     list_filter     = ["role", "is_active", "is_staff"]
     search_fields   = ["email"]
     ordering        = ["-created_at"]
@@ -67,8 +68,8 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
 
 
 @admin.register(Customer)
-class CustomerAdmin(ModelAdmin):
-    list_display    = ["brand_name", "contact_name", "phone", "user", "city", "created_at"]
+class CustomerAdmin(RowActionsMixin, ModelAdmin):
+    list_display    = ["brand_name", "contact_name", "phone", "user", "city", "created_at", "row_actions"]
     search_fields   = ["brand_name", "contact_name", "phone", "user__email"]
     list_filter     = ["city", "state", "country"]
     readonly_fields = ["id", "created_at", "updated_at"]

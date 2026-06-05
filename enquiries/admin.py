@@ -4,6 +4,7 @@ from openpyxl.utils import get_column_letter
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from django.utils.html import format_html
+from huezo_backend.admin_mixins import RowActionsMixin
 from django.utils.safestring import mark_safe
 from django.utils import timezone
 from django.http import HttpResponse
@@ -110,11 +111,11 @@ class EnquiryImageInline(TabularInline):
 # ── ENQUIRY ADMIN ──────────────────────────────────────────────────────
 
 @admin.register(Enquiry)
-class EnquiryAdmin(ModelAdmin):
+class EnquiryAdmin(RowActionsMixin, ModelAdmin):
     list_display = [
         'enquiry_number', 'order_type', 'full_name', 'phone',
         'email', 'brand_name', 'for_category', 'status', 'unread_badge',
-        'assigned_to_user', 'source_page', 'created_at',
+        'assigned_to_user', 'source_page', 'created_at', 'row_actions',
     ]
     list_filter     = ['order_type', 'status', 'for_category', 'source_page', 'is_viewed', 'created_at']
     search_fields   = ['enquiry_number', 'full_name', 'phone', 'email', 'brand_name']

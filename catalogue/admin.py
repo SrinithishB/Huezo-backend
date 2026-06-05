@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from django.utils.html import format_html
+from huezo_backend.admin_mixins import RowActionsMixin
 from .models import WLPrototype, WLPrototypeImage
 
 class WLPrototypeForm(forms.ModelForm):
@@ -36,12 +37,12 @@ class WLPrototypeImageInline(TabularInline):
 
 
 @admin.register(WLPrototype)
-class WLPrototypeAdmin(ModelAdmin):
+class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
     form = WLPrototypeForm
     list_display    = [
         "prototype_code", "garment_type", "for_gender",
         "collection_name", "moq", "is_prebooking",
-        "is_active", "thumbnail_preview", "created_at",
+        "is_active", "thumbnail_preview", "created_at", "row_actions",
     ]
     list_filter     = ["for_gender", "is_active", "is_prebooking", "garment_type"]
     search_fields   = ["prototype_code", "garment_type", "collection_name", "description"]
@@ -151,12 +152,12 @@ class FabricsCatalogueForm(forms.ModelForm):
         }
 
 @admin.register(FabricsCatalogue)
-class FabricsCatalogueAdmin(ModelAdmin):
+class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
     form = FabricsCatalogueForm
     list_display    = [
         "fabric_name", "fabric_type", "effective_moq_display",
         "composition", "price_per_meter", "stock_available_meters",
-        "is_active", "thumbnail_preview", "created_at",
+        "is_active", "thumbnail_preview", "created_at", "row_actions",
     ]
     list_filter     = ["fabric_type", "is_active"]
     search_fields   = ["fabric_name", "composition", "description"]
