@@ -292,11 +292,15 @@ LOGGING = {
 
 # ── Unfold Admin Theme Customization ───────────────────────────────────
 from django.urls import reverse_lazy
+from django.templatetags.static import static
 
 UNFOLD = {
     "SITE_TITLE": "Huezo Administration",
     "SITE_HEADER": "Huezo Admin",
-    "SITE_SYMBOL": "checkroom", # clothes/hangers icon
+    "SITE_LOGO": {
+        "light": lambda request: static("images/logo.png"),
+        "dark": lambda request: static("images/logo.png"),
+    },
     "SHOW_HISTORY": True,
     "SHOW_SIDEBAR_FILTER": True,
     "COLORS": {
