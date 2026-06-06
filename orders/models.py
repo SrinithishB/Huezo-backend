@@ -31,6 +31,7 @@ PRIVATE_LABEL_STAGES = [
     ("sample_request",           "Sample request"),
     ("sample_approval",          "Sample Approved"),
     ("sample_rework",            "Sample Rework"),
+    ("advance_pending",          "Advance Pending"),
     ("advance_paid",             "Advance Paid"),
     ("bulk_production",          "Bulk production"),
     ("quality_inspection",       "Quality Inspection"),
@@ -51,6 +52,7 @@ FABRICS_STAGES_WITH_SWATCH = [
     ("swatch_received",          "Swatch Received"),
     ("swatch_approved",          "Swatch Approved"),
     ("swatch_rework",            "Swatch Rework"),
+    ("advance_pending",          "Advance Pending"),
     ("advance_paid",             "Advance Paid"),
     ("bulk_production",          "Bulk production"),
     ("quality_inspection",       "Quality Inspection"),
@@ -65,6 +67,7 @@ FABRICS_STAGES_WITH_SWATCH = [
 # Fabrics — without swatch (direct bulk order)
 FABRICS_STAGES_NO_SWATCH = [
     ("order_placed",             "Order Placed"),
+    ("advance_pending",          "Advance Pending"),
     ("advance_paid",             "Advance Paid"),
     ("bulk_production",          "Bulk production"),
     ("quality_inspection",       "Quality Inspection"),
@@ -352,6 +355,7 @@ class Order(models.Model):
             ])
 
         common_stages = [
+            {"value": "advance_pending", "label": "Advance Pending"},
             {"value": "advance_paid", "label": "Advance Paid"},
             {"value": "bulk_production", "label": "Bulk production"},
             {"value": "quality_inspection", "label": "Quality Inspection"},

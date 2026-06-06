@@ -188,7 +188,7 @@ class OrderStatusUpdateView(APIView):
                 update_fields.append("advance_amount")
 
             # Calculate active payment amount
-            if order.status == "order_placed" and order.advance_amount is not None:
+            if order.status == "advance_pending" and order.advance_amount is not None:
                 order.payment_amount = order.advance_amount
                 if "payment_amount" not in update_fields:
                     update_fields.append("payment_amount")
@@ -231,8 +231,8 @@ class OrderStatusUpdateView(APIView):
                 notes      = notes,
             )
 
-            # Auto-create Razorpay payment when status → order_placed / payment_pending
-            if order.status == "order_placed" and order.advance_amount:
+            # Auto-create Razorpay payment when status → advance_pending / payment_pending
+            if order.status == "advance_pending" and order.advance_amount:
                 try:
                     from payments import gateway
                     gateway.check_and_create_advance_payment(order)

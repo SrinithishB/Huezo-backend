@@ -179,6 +179,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         "mark_as_sample_approval",
         "mark_as_sample_rework",
         # Standard actions
+        "mark_as_advance_pending",
         "mark_as_bulk_production",
         "mark_as_advance_paid",
         "mark_as_quality_inspection",
@@ -382,7 +383,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
             old = Order.objects.get(pk=obj.pk)
 
             # Auto-calculate payment_amount if total_amount/advance_amount are set/changed in admin
-            if obj.status == "order_placed" and obj.advance_amount is not None:
+            if obj.status == "advance_pending" and obj.advance_amount is not None:
                 obj.payment_amount = obj.advance_amount
             elif obj.status == "payment_pending" and obj.total_amount is not None and obj.advance_amount is not None:
                 obj.payment_amount = obj.total_amount - obj.advance_amount
@@ -423,8 +424,8 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
                         f"Assignment notification failed for {obj.order_number}: {e}"
                     )
 
-            # Auto-create Razorpay payment when status → order_placed / payment_pending
-            if obj.status == "order_placed" and obj.advance_amount:
+            # Auto-create Razorpay payment when status → advance_pending / payment_pending
+            if obj.status == "advance_pending" and obj.advance_amount:
                 # Check/create advance payment
                 try:
                     from payments import gateway
@@ -550,6 +551,10 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
     @admin.action(description="[WL/PL] Mark as Sample Rework")
     def mark_as_sample_rework(self, request, queryset):
         self._bulk_update_status(request, queryset, "sample_rework")
+
+    @admin.action(description="Mark selected as Advance Pending")
+    def mark_as_advance_pending(self, request, queryset):
+        self._bulk_update_status(request, queryset, "advance_pending")
 
     @admin.action(description="Mark selected as Bulk Production")
     def mark_as_bulk_production(self, request, queryset):
