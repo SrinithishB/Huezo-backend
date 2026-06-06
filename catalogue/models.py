@@ -1,6 +1,35 @@
 import uuid
+import ast
 from django.core.validators import MaxValueValidator
 from django.db import models
+from django import forms
+
+
+class FitSizesFormField(forms.CharField):
+    def to_python(self, value):
+        if not value:
+            return []
+        value = value.strip()
+        if value.startswith('[') and value.endswith(']'):
+            try:
+                parsed = ast.literal_eval(value)
+                if isinstance(parsed, list):
+                    return [str(s).strip() for s in parsed if s]
+            except Exception:
+                pass
+        return [s.strip() for s in value.split(',') if s.strip()]
+
+    def prepare_value(self, value):
+        if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+            try:
+                parsed = ast.literal_eval(value)
+                if isinstance(parsed, list):
+                    value = parsed
+            except Exception:
+                pass
+        if isinstance(value, list):
+            return ", ".join(value)
+        return value or ""
 
 
 class FitSizesField(models.TextField):
@@ -24,7 +53,20 @@ class FitSizesField(models.TextField):
     def _parse(self, value):
         if not value:
             return []
+        value = value.strip()
+        if value.startswith('[') and value.endswith(']'):
+            try:
+                parsed = ast.literal_eval(value)
+                if isinstance(parsed, list):
+                    return [str(s).strip() for s in parsed if s]
+            except Exception:
+                pass
         return [s.strip() for s in value.split(",") if s.strip()]
+
+    def formfield(self, **kwargs):
+        defaults = {'form_class': FitSizesFormField}
+        defaults.update(kwargs)
+        return super().formfield(**defaults)
 
 
 class GenderChoice(models.TextChoices):
