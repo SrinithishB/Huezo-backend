@@ -99,20 +99,6 @@ def export_orders_to_excel(queryset, filename):
 
 # ── INLINES ────────────────────────────────────────────────────────────
 
-class OrderNoteInline(TabularInline):
-    model           = OrderNote
-    extra           = 1
-    fields          = ["note", "added_by", "created_at"]
-    readonly_fields = ["added_by", "created_at"]
-    ordering        = ["-created_at"]
-    verbose_name    = "Note"
-    verbose_name_plural = "Notes"
-
-    def save_model(self, request, obj, form, change):
-        if not obj.added_by:
-            obj.added_by = request.user
-        super().save_model(request, obj, form, change)
-
 
 class OrderStageHistoryInline(TabularInline):
     model           = OrderStageHistory
@@ -177,7 +163,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
     ]
     search_fields = ["order_number", "customer_user__email", "style_name"]
     ordering      = ["-created_at"]
-    inlines       = [OrderNoteInline, OrderStageHistoryInline, OrderImageInline]
+    inlines       = [OrderStageHistoryInline, OrderImageInline]
     actions       = [
         "export_all_as_excel",
         "export_wl_as_excel",
@@ -286,9 +272,6 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         }),
         ("Traceability", {
             "fields": ("enquiry",),
-        }),
-        ("Admin Notes", {
-            "fields": ("notes",),
         }),
         ("Timestamps", {
             "fields": ("created_at", "updated_at"),
