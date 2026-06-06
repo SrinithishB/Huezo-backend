@@ -203,6 +203,9 @@ class OrderStatusUpdateView(APIView):
             unit_price     = serializer.validated_data.get("unit_price")
             hsn_code       = serializer.validated_data.get("hsn_code")
             gst_percentage = serializer.validated_data.get("gst_percentage")
+            tracking_link  = serializer.validated_data.get("tracking_link")
+            tracking_code  = serializer.validated_data.get("tracking_code")
+
             if unit_price is not None:
                 order.unit_price = unit_price
                 update_fields.append("unit_price")
@@ -212,6 +215,12 @@ class OrderStatusUpdateView(APIView):
             if gst_percentage is not None:
                 order.gst_percentage = gst_percentage
                 update_fields.append("gst_percentage")
+            if tracking_link is not None:
+                order.tracking_link = tracking_link
+                update_fields.append("tracking_link")
+            if tracking_code is not None:
+                order.tracking_code = tracking_code
+                update_fields.append("tracking_code")
 
             order.save(update_fields=update_fields)
 

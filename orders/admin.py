@@ -170,12 +170,19 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         "mark_as_swatch_received",
         "mark_as_swatch_approved",
         "mark_as_swatch_rework",
+        # WL/PL Sample actions
+        "mark_as_sample_request",
+        "mark_as_sample_approval",
+        "mark_as_sample_rework",
         # Standard actions
-        "mark_as_procurement",
+        "mark_as_bulk_production",
+        "mark_as_advance_paid",
+        "mark_as_quality_inspection",
         "mark_as_packing",
         "mark_as_payment_pending",
         "mark_as_payment_done",
         "mark_as_dispatch",
+        "mark_as_shipment_tracking",
         "mark_as_delivered",
     ]
 
@@ -254,6 +261,10 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
                 "Unit Price, HSN/SAC Code and GST % are used to generate the tax invoice PDF. "
                 "GST % is split equally as CGST + SGST (e.g. 5 = 2.5% + 2.5%)."
             ),
+        }),
+        ("Shipment Tracking", {
+            "fields": ("tracking_link", "tracking_code"),
+            "description": "Add tracking details for shipment dispatch.",
         }),
         ("Traceability", {
             "fields": ("enquiry",),
@@ -526,9 +537,29 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
 
     # ── Standard stage actions ─────────────────────────────────────── #
 
-    @admin.action(description="Mark selected as Procurement")
-    def mark_as_procurement(self, request, queryset):
-        self._bulk_update_status(request, queryset, "procurement")
+    @admin.action(description="[WL/PL] Mark as Sample Request")
+    def mark_as_sample_request(self, request, queryset):
+        self._bulk_update_status(request, queryset, "sample_request")
+
+    @admin.action(description="[WL/PL] Mark as Sample Approval")
+    def mark_as_sample_approval(self, request, queryset):
+        self._bulk_update_status(request, queryset, "sample_approval")
+
+    @admin.action(description="[WL/PL] Mark as Sample Rework")
+    def mark_as_sample_rework(self, request, queryset):
+        self._bulk_update_status(request, queryset, "sample_rework")
+
+    @admin.action(description="Mark selected as Bulk Production")
+    def mark_as_bulk_production(self, request, queryset):
+        self._bulk_update_status(request, queryset, "bulk_production")
+
+    @admin.action(description="Mark selected as Advance Paid")
+    def mark_as_advance_paid(self, request, queryset):
+        self._bulk_update_status(request, queryset, "advance_paid")
+
+    @admin.action(description="Mark selected as Quality Inspection")
+    def mark_as_quality_inspection(self, request, queryset):
+        self._bulk_update_status(request, queryset, "quality_inspection")
 
     @admin.action(description="Mark selected as Packing")
     def mark_as_packing(self, request, queryset):
@@ -545,6 +576,10 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
     @admin.action(description="Mark selected as Dispatched")
     def mark_as_dispatch(self, request, queryset):
         self._bulk_update_status(request, queryset, "dispatch")
+
+    @admin.action(description="Mark selected as Shipment Tracking Details")
+    def mark_as_shipment_tracking(self, request, queryset):
+        self._bulk_update_status(request, queryset, "shipment_tracking")
 
     @admin.action(description="Mark selected as Delivered")
     def mark_as_delivered(self, request, queryset):

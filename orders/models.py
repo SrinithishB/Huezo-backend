@@ -27,70 +27,74 @@ class FabricType(models.TextChoices):
 # ── ORDER STATUS PER TYPE ──────────────────────────────────────────────
 
 PRIVATE_LABEL_STAGES = [
-    ("order_placed",             "Order Placed"),
-    ("advance_paid",             "Advance Paid"),
-    ("sampling_fabric",          "Sampling Fabric"),
-    ("sampling_style",           "Sampling Style"),
-    ("sampling_fit",             "Sampling Fit"),
-    ("sample_approval",          "Sample Approval"),
+    ("sample_request",           "Sample request"),
+    ("sample_approval",          "Sample approval"),
     ("sample_rework",            "Sample Rework"),
-    ("sample_approved",          "Sample Approved"),
-    ("fabric_procurement",       "Fabric Procurement / Production"),
-    ("cutting",                  "Cutting"),
-    ("production",               "Production"),
+    ("order_placed",             "Advance Pending"),
+    ("advance_paid",             "Advance Paid"),
+    ("bulk_production",          "Bulk production"),
+    ("quality_inspection",       "Quality Inspection"),
     ("packing",                  "Packing"),
     ("payment_pending",          "Payment Pending"),
     ("payment_done",             "Payment Done"),
     ("dispatch",                 "Dispatch"),
+    ("shipment_tracking",        "Shippment tracking details"),
     ("delivered",                "Delivered"),
 ]
 
-WHITE_LABEL_STAGES = [
-    ("order_placed",    "Order Placed"),
-    ("advance_paid",    "Advance Paid"),
-    ("cutting",         "Cutting"),
-    ("production",      "Production"),
-    ("packing",         "Packing"),
-    ("payment_pending", "Payment Pending"),
-    ("payment_done",    "Payment Done"),
-    ("dispatch",        "Dispatch"),
-    ("delivered",       "Delivered"),
-]
+WHITE_LABEL_STAGES = PRIVATE_LABEL_STAGES
 
 # Fabrics — with swatch (when customer requests swatch before bulk)
 FABRICS_STAGES_WITH_SWATCH = [
-    ("order_placed",    "Order Placed"),
-    ("swatch_sent",     "Swatch Sent"),
-    ("swatch_received", "Swatch Received"),
-    ("swatch_approved", "Swatch Approved"),
-    ("swatch_rework",   "Swatch Rework"),
-    ("advance_paid",    "Advance Paid"),
-    ("procurement",     "Procurement"),
-    ("packing",         "Packing"),
-    ("payment_pending", "Payment Pending"),
-    ("payment_done",    "Payment Done"),
-    ("dispatch",        "Dispatch"),
-    ("delivered",       "Delivered"),
+    ("swatch_sent",              "Swatch sent"),
+    ("swatch_received",          "Swatch Received"),
+    ("swatch_approved",          "Swatch Approved or Swatch Rework"),
+    ("swatch_rework",            "Swatch Rework"),
+    ("order_placed",             "Advance Pending"),
+    ("advance_paid",             "Advance Paid"),
+    ("bulk_production",          "Bulk production"),
+    ("quality_inspection",       "Quality Inspection"),
+    ("packing",                  "Packing"),
+    ("payment_pending",          "Payment Pending"),
+    ("payment_done",             "Payment Done"),
+    ("dispatch",                 "Dispatch"),
+    ("shipment_tracking",        "Shippment tracking details"),
+    ("delivered",                "Delivered"),
 ]
 
 # Fabrics — without swatch (direct bulk order)
 FABRICS_STAGES_NO_SWATCH = [
-    ("order_placed",    "Order Placed"),
-    ("advance_paid",    "Advance Paid"),
-    ("procurement",     "Procurement"),
-    ("packing",         "Packing"),
-    ("payment_pending", "Payment Pending"),
-    ("payment_done",    "Payment Done"),
-    ("dispatch",        "Dispatch"),
-    ("delivered",       "Delivered"),
+    ("order_placed",             "Advance Pending"),
+    ("advance_paid",             "Advance Paid"),
+    ("bulk_production",          "Bulk production"),
+    ("quality_inspection",       "Quality Inspection"),
+    ("packing",                  "Packing"),
+    ("payment_pending",          "Payment Pending"),
+    ("payment_done",             "Payment Done"),
+    ("dispatch",                 "Dispatch"),
+    ("shipment_tracking",        "Shippment tracking details"),
+    ("delivered",                "Delivered"),
 ]
 
 # Combined for model field choices — include all possible stages
 FABRICS_STAGES = FABRICS_STAGES_WITH_SWATCH  # superset for choices
 
 ALL_STATUS_CHOICES = list({s[0]: s for s in
-    PRIVATE_LABEL_STAGES + WHITE_LABEL_STAGES + FABRICS_STAGES
+    PRIVATE_LABEL_STAGES + WHITE_LABEL_STAGES + FABRICS_STAGES + [
+        ("sample_request", "Sample request"),
+        ("sample_approval", "Sample approval"),
+        ("sample_rework", "Sample Rework"),
+        ("swatch_sent", "Swatch sent"),
+        ("swatch_received", "Swatch Received"),
+        ("swatch_approved", "Swatch Approved or Swatch Rework"),
+        ("swatch_rework", "Swatch Rework"),
+        ("bulk_production", "Bulk production"),
+        ("quality_inspection", "Quality Inspection"),
+        ("shipment_tracking", "Shippment tracking details"),
+        ("advance_paid", "Advance Paid"),
+    ]
 }.values()) + [("cancelled", "Cancelled")]
+
 
 
 # ── ORDER ──────────────────────────────────────────────────────────────
@@ -248,6 +252,15 @@ class Order(models.Model):
         help_text="Total GST % (split equally as CGST + SGST, e.g. 5 = 2.5+2.5)",
     )
 
+    tracking_link = models.URLField(
+        max_length=500, null=True, blank=True,
+        help_text="Third-party shipment tracking webpage link"
+    )
+    tracking_code = models.CharField(
+        max_length=100, null=True, blank=True,
+        help_text="Shipment tracking code/number"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -296,6 +309,143 @@ class Order(models.Model):
                 return FABRICS_STAGES_WITH_SWATCH
             return FABRICS_STAGES_NO_SWATCH
         return FABRICS_STAGES_NO_SWATCH
+
+    @property
+    def dynamic_stages(self):
+        """
+        Computes the sequence of stages dynamically based on OrderStageHistory.
+        Handles swatch/sample rework cycles dynamically.
+        Returns a list of dicts: [{'value': '...', 'label': '...', 'status': '...', 'date': '...', 'notes': '...'}]
+        """
+        base_stages = []
+        if self.order_type == "fabrics":
+            if self.swatch_required:
+                base_stages = [
+                    {"value": "swatch_sent", "label": "Swatch sent"},
+                    {"value": "swatch_received", "label": "Swatch Received"},
+                    {"value": "swatch_approved", "label": "Swatch Approved or Swatch Rework"},
+                ]
+            else:
+                base_stages = []
+        else: # white_label or private_label
+            base_stages = [
+                {"value": "sample_request", "label": "Sample request"},
+                {"value": "sample_approval", "label": "Sample approval"},
+            ]
+
+        common_stages = [
+            {"value": "order_placed", "label": "Advance Pending"},
+            {"value": "advance_paid", "label": "Advance Paid"},
+            {"value": "bulk_production", "label": "Bulk production"},
+            {"value": "quality_inspection", "label": "Quality Inspection"},
+            {"value": "packing", "label": "Packing"},
+            {"value": "payment_pending", "label": "Payment Pending"},
+            {"value": "payment_done", "label": "Payment Done"},
+            {"value": "dispatch", "label": "Dispatch"},
+            {"value": "shipment_tracking", "label": "Shippment tracking details"},
+            {"value": "delivered", "label": "Delivered"},
+        ]
+
+        # Use prefetchable stage_history
+        history = list(self.stage_history.all().order_by("changed_at"))
+
+        swatch_rework_count = sum(1 for h in history if h.stage == "swatch_rework")
+        sample_rework_count = sum(1 for h in history if h.stage == "sample_rework")
+
+        stages = []
+        if self.order_type == "fabrics" and self.swatch_required:
+            for _ in range(swatch_rework_count):
+                stages.extend([
+                    {"value": "swatch_sent", "label": "Swatch sent"},
+                    {"value": "swatch_received", "label": "Swatch Received"},
+                    {"value": "swatch_rework", "label": "Swatch Rework"},
+                ])
+            stages.extend([
+                {"value": "swatch_sent", "label": "Swatch sent"},
+                {"value": "swatch_received", "label": "Swatch Received"},
+                {"value": "swatch_approved", "label": "Swatch Approved or Swatch Rework"},
+            ])
+        elif self.order_type in ["white_label", "private_label"]:
+            for _ in range(sample_rework_count):
+                stages.extend([
+                    {"value": "sample_request", "label": "Sample request"},
+                    {"value": "sample_rework", "label": "Sample Rework"},
+                ])
+            stages.extend([
+                {"value": "sample_request", "label": "Sample request"},
+                {"value": "sample_approval", "label": "Sample approval"},
+            ])
+
+        stages.extend(common_stages)
+
+        for s in stages:
+            s["status"] = "pending"
+            s["date"] = None
+            s["notes"] = None
+
+        def stages_match(h_stage, ds_value):
+            if h_stage == ds_value:
+                return True
+            if h_stage == "swatch_approved" and ds_value == "swatch_approved":
+                return True
+            if h_stage == "swatch_rework" and ds_value == "swatch_rework":
+                return True
+            if h_stage == "sample_approved" and ds_value == "sample_approval":
+                return True
+            if h_stage == "sample_rework" and ds_value == "sample_rework":
+                return True
+            return False
+
+        ds_idx = 0
+        num_ds = len(stages)
+
+        for h in history:
+            idx = ds_idx
+            while idx < num_ds:
+                if stages_match(h.stage, stages[idx]["value"]):
+                    for j in range(ds_idx, idx):
+                        stages[j]["status"] = "completed"
+                    
+                    stages[idx]["status"] = "completed"
+                    stages[idx]["date"] = h.changed_at.isoformat()
+                    stages[idx]["notes"] = h.notes
+
+                    if h.stage == "swatch_approved":
+                        stages[idx]["label"] = "Swatch Approved"
+                    elif h.stage == "swatch_rework":
+                        stages[idx]["label"] = "Swatch Rework"
+                    elif h.stage == "sample_approved":
+                        stages[idx]["label"] = "Sample Approved"
+                    elif h.stage == "sample_rework":
+                        stages[idx]["label"] = "Sample Rework"
+
+                    ds_idx = idx + 1
+                    break
+                idx += 1
+
+        current_status = self.status
+        mapped_current = current_status
+        if current_status == "swatch_approved" or current_status == "swatch_rework":
+            mapped_current = "swatch_approved" if current_status == "swatch_approved" else "swatch_rework"
+        elif current_status == "sample_approved" or current_status == "sample_rework":
+            mapped_current = "sample_approval" if current_status == "sample_approved" else "sample_rework"
+
+        current_idx = -1
+        for i, s in enumerate(stages):
+            if s["value"] == mapped_current or (mapped_current == "swatch_approved" and s["value"] == "swatch_approved") or (mapped_current == "sample_approval" and s["value"] == "sample_approval"):
+                current_idx = i
+                if s["status"] != "completed":
+                    break
+
+        if current_idx != -1:
+            stages[current_idx]["status"] = "current"
+            for j in range(current_idx + 1, num_ds):
+                stages[j]["status"] = "pending"
+                stages[j]["date"] = None
+                stages[j]["notes"] = None
+
+        return stages
+
 
 
 # ── ORDER STAGE HISTORY ────────────────────────────────────────────────

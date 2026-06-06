@@ -113,6 +113,7 @@ class WLOrderCreateSerializer(serializers.Serializer):
             total_quantity        = total_quantity,
             moq                   = prototype.moq,
             customization_notes   = validated_data.get("customization_notes", ""),
+            status                = "sample_request",
         )
 
         for image_file in images_data:
@@ -124,9 +125,9 @@ class WLOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "order_placed",
+            stage      = "sample_request",
             changed_by = request.user,
-            notes      = "Order placed by customer.",
+            notes      = "Order placed by customer. Sample requested.",
         )
         return order
 
@@ -206,6 +207,7 @@ class PLOrderCreateSerializer(serializers.Serializer):
             pl_fabric_2     = validated_data.get("pl_fabric_2"),
             pl_fabric_3     = validated_data.get("pl_fabric_3"),
             notes           = validated_data.get("notes", ""),
+            status          = "sample_request",
         )
 
         for image_file in images_data:
@@ -217,9 +219,9 @@ class PLOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "order_placed",
+            stage      = "sample_request",
             changed_by = request.user,
-            notes      = "Order placed by customer.",
+            notes      = "Order placed by customer. Sample requested.",
         )
         return order
 
@@ -270,6 +272,8 @@ class FabricsOrderCreateSerializer(serializers.Serializer):
         swatch_required = validated_data.get("swatch_required", False)
         request         = self.context["request"]
 
+        initial_status = "swatch_sent" if swatch_required else "order_placed"
+
         order = Order.objects.create(
             order_type       = OrderType.FABRICS,
             customer_user    = request.user,
@@ -279,7 +283,8 @@ class FabricsOrderCreateSerializer(serializers.Serializer):
             total_quantity   = validated_data["total_quantity"],
             moq              = fabric.effective_moq,
             message          = validated_data["message"],
-            swatch_required  = swatch_required,   # ← NEW
+            swatch_required  = swatch_required,
+            status           = initial_status,
         )
 
         for image_file in images_data:
@@ -291,9 +296,9 @@ class FabricsOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "order_placed",
+            stage      = initial_status,
             changed_by = request.user,
-            notes      = "Order placed by customer.",
+            notes      = f"Order placed by customer.{' Swatch requested.' if swatch_required else ''}",
         )
         return order
 
@@ -391,6 +396,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "status", "valid_stages",
             "payment_amount", "total_amount", "advance_amount",
             "unit_price", "hsn_code", "gst_percentage",
+            "tracking_link", "tracking_code",
             "payment",
             "notes", "images", "stage_history",
             "created_at", "updated_at",
@@ -443,7 +449,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         return fabrics
 
     def get_valid_stages(self, obj):
-        return [{"value": s[0], "label": s[1]} for s in obj.valid_stages]
+        return obj.dynamic_stages
 
     def get_payment(self, obj):
         from payments.models import PaymentTransaction
@@ -498,6 +504,8 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
         required=False, allow_null=True,
         min_value=0,
     )
+    tracking_link = serializers.URLField(required=False, allow_null=True, allow_blank=True)
+    tracking_code = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     def validate_status(self, value):
         order = self.context["order"]
@@ -619,6 +627,7 @@ class StaffWLOrderCreateSerializer(serializers.Serializer):
             total_quantity        = total_quantity,
             moq                   = prototype.moq,
             customization_notes   = validated_data.get("customization_notes", ""),
+            status                = "sample_request",
         )
 
         for image_file in images_data:
@@ -628,9 +637,9 @@ class StaffWLOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "order_placed",
+            stage      = "sample_request",
             changed_by = request.user,
-            notes      = f"Order placed by staff ({request.user.email}) on behalf of customer.",
+            notes      = f"Order placed by staff ({request.user.email}) on behalf of customer. Sample requested.",
         )
         return order
 
@@ -687,6 +696,8 @@ class StaffFabricsOrderCreateSerializer(serializers.Serializer):
         swatch_required = validated_data.get("swatch_required", False)
         request         = self.context["request"]
 
+        initial_status = "swatch_sent" if swatch_required else "order_placed"
+
         order = Order.objects.create(
             order_type       = OrderType.FABRICS,
             customer_user    = customer,
@@ -698,6 +709,7 @@ class StaffFabricsOrderCreateSerializer(serializers.Serializer):
             moq              = fabric.effective_moq,
             message          = validated_data["message"],
             swatch_required  = swatch_required,
+            status           = initial_status,
         )
 
         for image_file in images_data:
@@ -707,9 +719,9 @@ class StaffFabricsOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "order_placed",
+            stage      = initial_status,
             changed_by = request.user,
-            notes      = f"Order placed by staff ({request.user.email}) on behalf of customer.",
+            notes      = f"Order placed by staff ({request.user.email}) on behalf of customer.{' Swatch requested.' if swatch_required else ''}",
         )
         return order
 
@@ -792,6 +804,7 @@ class StaffPLOrderCreateSerializer(serializers.Serializer):
             hsn_code        = validated_data.get("hsn_code", ""),
             gst_percentage  = validated_data.get("gst_percentage", 5.00),
             unit_price      = unit_price,
+            status          = "sample_request",
         )
 
         for image_file in images_data:
@@ -801,20 +814,10 @@ class StaffPLOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "order_placed",
+            stage      = "sample_request",
             changed_by = request.user,
-            notes      = f"Private Label order placed by staff ({request.user.email}) on behalf of customer.",
+            notes      = f"Private Label order placed by staff ({request.user.email}) on behalf of customer. Sample requested.",
         )
-
-        # Trigger Razorpay advance payment checkout link generation
-        try:
-            from payments import gateway
-            gateway.check_and_create_advance_payment(order)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(
-                f"Advance payment creation failed for {order.order_number}: {e}"
-            )
 
         return order
 
