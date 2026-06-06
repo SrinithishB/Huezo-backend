@@ -34,11 +34,18 @@ class OrderFilter(django_filters.FilterSet):
     unassigned    = django_filters.BooleanFilter(field_name="assigned_to", lookup_expr="isnull")
     customer_user = django_filters.UUIDFilter(field_name="customer_user__id")
     status_in     = django_filters.CharFilter(method="filter_status_in")
+    order_type_in = django_filters.CharFilter(method="filter_order_type_in")
 
     def filter_status_in(self, queryset, name, value):
         statuses = [s.strip() for s in value.split(",") if s.strip()]
         if statuses:
             return queryset.filter(status__in=statuses)
+        return queryset
+
+    def filter_order_type_in(self, queryset, name, value):
+        types = [t.strip() for t in value.split(",") if t.strip()]
+        if types:
+            return queryset.filter(order_type__in=types)
         return queryset
 
     class Meta:
