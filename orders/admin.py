@@ -116,6 +116,7 @@ class OrderNoteInline(TabularInline):
 class OrderStageHistoryInline(TabularInline):
     model           = OrderStageHistory
     extra           = 0
+    fields          = ["stage", "changed_by", "notes", "changed_at"]
     readonly_fields = ["stage", "changed_by", "notes", "changed_at"]
     ordering        = ["changed_at"]
     can_delete      = False
