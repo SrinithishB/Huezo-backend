@@ -2,6 +2,7 @@
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from django import forms
 from openpyxl.utils import get_column_letter
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
@@ -141,10 +142,26 @@ class OrderImageInline(TabularInline):
     image_preview.short_description = "Preview"
 
 
+# ── CUSTOM ADMIN FORM FOR ORDER ────────────────────────────────────────
+
+class OrderAdminForm(forms.ModelForm):
+    stage_change_notes = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 2, "style": "width: 100%; max-width: 600px;"}),
+        required=False,
+        label="Stage Change Note",
+        help_text="Optional note added to the stage history record if the status is updated."
+    )
+
+    class Meta:
+        model = Order
+        fields = "__all__"
+
+
 # ── ORDER ADMIN ────────────────────────────────────────────────────────
 
 @admin.register(Order)
 class OrderAdmin(RowActionsMixin, ModelAdmin):
+    form = OrderAdminForm
     list_display  = [
         "order_number", "order_type", "customer_user",
         "assigned_to", "status", "swatch_badge",
@@ -242,7 +259,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
             "description": "Assign a staff or admin member responsible for this order.",
         }),
         ("Status", {
-            "fields": ("status",),
+            "fields": ("status", "stage_change_notes"),
             "description": (
                 "Update order stage here. "
                 "Stage history is tracked automatically on save. "
@@ -389,11 +406,12 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
 
             # Track status change in stage history
             if old.status != obj.status:
+                stage_notes = form.cleaned_data.get("stage_change_notes") or "Updated via admin panel."
                 OrderStageHistory.objects.create(
                     order      = obj,
                     stage      = obj.status,
                     changed_by = request.user,
-                    notes      = "Updated via admin panel.",
+                    notes      = stage_notes,
                 )
                 # Send push notification to customer
                 try:
