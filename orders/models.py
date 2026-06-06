@@ -27,10 +27,10 @@ class FabricType(models.TextChoices):
 # ── ORDER STATUS PER TYPE ──────────────────────────────────────────────
 
 PRIVATE_LABEL_STAGES = [
+    ("order_placed",             "Advance Pending"),
     ("sample_request",           "Sample request"),
     ("sample_approval",          "Sample Approved"),
     ("sample_rework",            "Sample Rework"),
-    ("order_placed",             "Advance Pending"),
     ("advance_paid",             "Advance Paid"),
     ("bulk_production",          "Bulk production"),
     ("quality_inspection",       "Quality Inspection"),
@@ -46,11 +46,11 @@ WHITE_LABEL_STAGES = PRIVATE_LABEL_STAGES
 
 # Fabrics — with swatch (when customer requests swatch before bulk)
 FABRICS_STAGES_WITH_SWATCH = [
+    ("order_placed",             "Advance Pending"),
     ("swatch_sent",              "Swatch sent"),
     ("swatch_received",          "Swatch Received"),
     ("swatch_approved",          "Swatch Approved"),
     ("swatch_rework",            "Swatch Rework"),
-    ("order_placed",             "Advance Pending"),
     ("advance_paid",             "Advance Paid"),
     ("bulk_production",          "Bulk production"),
     ("quality_inspection",       "Quality Inspection"),
@@ -317,33 +317,8 @@ class Order(models.Model):
         Handles swatch/sample rework cycles dynamically.
         Returns a list of dicts: [{'value': '...', 'label': '...', 'status': '...', 'date': '...', 'notes': '...'}]
         """
-        base_stages = []
-        if self.order_type == "fabrics":
-            if self.swatch_required:
-                base_stages = [
-                    {"value": "swatch_sent", "label": "Swatch sent"},
-                    {"value": "swatch_received", "label": "Swatch Received"},
-                    {"value": "swatch_approved", "label": "Swatch Approved"},
-                ]
-            else:
-                base_stages = []
-        else: # white_label or private_label
-            base_stages = [
-                {"value": "sample_request", "label": "Sample request"},
-                {"value": "sample_approval", "label": "Sample Approved"},
-            ]
-
-        common_stages = [
-            {"value": "order_placed", "label": "Advance Pending"},
-            {"value": "advance_paid", "label": "Advance Paid"},
-            {"value": "bulk_production", "label": "Bulk production"},
-            {"value": "quality_inspection", "label": "Quality Inspection"},
-            {"value": "packing", "label": "Packing"},
-            {"value": "payment_pending", "label": "Payment Pending"},
-            {"value": "payment_done", "label": "Payment Done"},
-            {"value": "dispatch", "label": "Dispatch"},
-            {"value": "shipment_tracking", "label": "Shippment tracking details"},
-            {"value": "delivered", "label": "Delivered"},
+        stages = [
+            {"value": "order_placed", "label": "Advance Pending"}
         ]
 
         # Use prefetchable stage_history
@@ -352,20 +327,20 @@ class Order(models.Model):
         swatch_rework_count = sum(1 for h in history if h.stage == "swatch_rework")
         sample_rework_count = sum(1 for h in history if h.stage == "sample_rework")
 
-        stages = []
-        if self.order_type == "fabrics" and self.swatch_required:
-            for _ in range(swatch_rework_count):
+        if self.order_type == "fabrics":
+            if self.swatch_required:
+                for _ in range(swatch_rework_count):
+                    stages.extend([
+                        {"value": "swatch_sent", "label": "Swatch sent"},
+                        {"value": "swatch_received", "label": "Swatch Received"},
+                        {"value": "swatch_rework", "label": "Swatch Rework"},
+                    ])
                 stages.extend([
                     {"value": "swatch_sent", "label": "Swatch sent"},
                     {"value": "swatch_received", "label": "Swatch Received"},
-                    {"value": "swatch_rework", "label": "Swatch Rework"},
+                    {"value": "swatch_approved", "label": "Swatch Approved"},
                 ])
-            stages.extend([
-                {"value": "swatch_sent", "label": "Swatch sent"},
-                {"value": "swatch_received", "label": "Swatch Received"},
-                {"value": "swatch_approved", "label": "Swatch Approved"},
-            ])
-        elif self.order_type in ["white_label", "private_label"]:
+        else: # white_label or private_label
             for _ in range(sample_rework_count):
                 stages.extend([
                     {"value": "sample_request", "label": "Sample request"},
@@ -376,6 +351,17 @@ class Order(models.Model):
                 {"value": "sample_approval", "label": "Sample Approved"},
             ])
 
+        common_stages = [
+            {"value": "advance_paid", "label": "Advance Paid"},
+            {"value": "bulk_production", "label": "Bulk production"},
+            {"value": "quality_inspection", "label": "Quality Inspection"},
+            {"value": "packing", "label": "Packing"},
+            {"value": "payment_pending", "label": "Payment Pending"},
+            {"value": "payment_done", "label": "Payment Done"},
+            {"value": "dispatch", "label": "Dispatch"},
+            {"value": "shipment_tracking", "label": "Shippment tracking details"},
+            {"value": "delivered", "label": "Delivered"},
+        ]
         stages.extend(common_stages)
 
         for s in stages:

@@ -395,13 +395,17 @@ class OrderInvoiceView(APIView):
         invoice_type = request.query_params.get("type", "final")
 
         if invoice_type == "advance":
-            if order.status in ("order_placed", "cancelled"):
+            allowed_statuses = {
+                "advance_paid", "bulk_production", "quality_inspection", "packing",
+                "payment_pending", "payment_done", "dispatch", "shipment_tracking", "delivered"
+            }
+            if order.status not in allowed_statuses:
                 return Response(
                     {"error": "Advance invoice is only available after advance payment is completed."},
                     status=400,
                 )
         else:
-            if order.status not in ("payment_done", "dispatch", "delivered"):
+            if order.status not in ("payment_done", "dispatch", "shipment_tracking", "delivered"):
                 return Response(
                     {"error": "Final invoice is only available after final payment is completed."},
                     status=400,
@@ -938,8 +942,12 @@ class OrderCancelView(APIView):
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # Cancellation is only allowed before advance is paid
-        # Check 1: Must be in 'order_placed' status
-        if order.status != "order_placed":
+        # Check 1: Must not be in progress / paid stages
+        not_allowed_cancel_statuses = {
+            "advance_paid", "bulk_production", "quality_inspection", "packing",
+            "payment_pending", "payment_done", "dispatch", "shipment_tracking", "delivered"
+        }
+        if order.status in not_allowed_cancel_statuses:
             return Response(
                 {"error": "Order cannot be cancelled because it is already in progress or completed."},
                 status=status.HTTP_400_BAD_REQUEST,

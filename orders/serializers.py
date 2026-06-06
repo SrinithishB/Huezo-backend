@@ -113,7 +113,7 @@ class WLOrderCreateSerializer(serializers.Serializer):
             total_quantity        = total_quantity,
             moq                   = prototype.moq,
             customization_notes   = validated_data.get("customization_notes", ""),
-            status                = "sample_request",
+            status                = "order_placed",
         )
 
         for image_file in images_data:
@@ -125,9 +125,9 @@ class WLOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "sample_request",
+            stage      = "order_placed",
             changed_by = request.user,
-            notes      = "Order placed by customer. Sample requested.",
+            notes      = "Order placed by customer.",
         )
         return order
 
@@ -207,7 +207,7 @@ class PLOrderCreateSerializer(serializers.Serializer):
             pl_fabric_2     = validated_data.get("pl_fabric_2"),
             pl_fabric_3     = validated_data.get("pl_fabric_3"),
             notes           = validated_data.get("notes", ""),
-            status          = "sample_request",
+            status          = "order_placed",
         )
 
         for image_file in images_data:
@@ -219,9 +219,9 @@ class PLOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "sample_request",
+            stage      = "order_placed",
             changed_by = request.user,
-            notes      = "Order placed by customer. Sample requested.",
+            notes      = "Order placed by customer.",
         )
         return order
 
@@ -272,7 +272,7 @@ class FabricsOrderCreateSerializer(serializers.Serializer):
         swatch_required = validated_data.get("swatch_required", False)
         request         = self.context["request"]
 
-        initial_status = "swatch_sent" if swatch_required else "order_placed"
+        initial_status = "order_placed"
 
         order = Order.objects.create(
             order_type       = OrderType.FABRICS,
@@ -627,7 +627,7 @@ class StaffWLOrderCreateSerializer(serializers.Serializer):
             total_quantity        = total_quantity,
             moq                   = prototype.moq,
             customization_notes   = validated_data.get("customization_notes", ""),
-            status                = "sample_request",
+            status                = "order_placed",
         )
 
         for image_file in images_data:
@@ -637,9 +637,9 @@ class StaffWLOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "sample_request",
+            stage      = "order_placed",
             changed_by = request.user,
-            notes      = f"Order placed by staff ({request.user.email}) on behalf of customer. Sample requested.",
+            notes      = f"Order placed by staff ({request.user.email}) on behalf of customer.",
         )
         return order
 
@@ -696,7 +696,7 @@ class StaffFabricsOrderCreateSerializer(serializers.Serializer):
         swatch_required = validated_data.get("swatch_required", False)
         request         = self.context["request"]
 
-        initial_status = "swatch_sent" if swatch_required else "order_placed"
+        initial_status = "order_placed"
 
         order = Order.objects.create(
             order_type       = OrderType.FABRICS,
@@ -804,7 +804,7 @@ class StaffPLOrderCreateSerializer(serializers.Serializer):
             hsn_code        = validated_data.get("hsn_code", ""),
             gst_percentage  = validated_data.get("gst_percentage", 5.00),
             unit_price      = unit_price,
-            status          = "sample_request",
+            status          = "order_placed",
         )
 
         for image_file in images_data:
@@ -814,9 +814,9 @@ class StaffPLOrderCreateSerializer(serializers.Serializer):
 
         OrderStageHistory.objects.create(
             order      = order,
-            stage      = "sample_request",
+            stage      = "order_placed",
             changed_by = request.user,
-            notes      = f"Private Label order placed by staff ({request.user.email}) on behalf of customer. Sample requested.",
+            notes      = f"Private Label order placed by staff ({request.user.email}) on behalf of customer.",
         )
 
         return order
