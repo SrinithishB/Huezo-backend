@@ -27,7 +27,7 @@ class FabricType(models.TextChoices):
 # ── ORDER STATUS PER TYPE ──────────────────────────────────────────────
 
 PRIVATE_LABEL_STAGES = [
-    ("order_placed",             "Advance Pending"),
+    ("order_placed",             "Order Placed"),
     ("sample_request",           "Sample request"),
     ("sample_approval",          "Sample Approved"),
     ("sample_rework",            "Sample Rework"),
@@ -46,7 +46,7 @@ WHITE_LABEL_STAGES = PRIVATE_LABEL_STAGES
 
 # Fabrics — with swatch (when customer requests swatch before bulk)
 FABRICS_STAGES_WITH_SWATCH = [
-    ("order_placed",             "Advance Pending"),
+    ("order_placed",             "Order Placed"),
     ("swatch_sent",              "Swatch sent"),
     ("swatch_received",          "Swatch Received"),
     ("swatch_approved",          "Swatch Approved"),
@@ -64,7 +64,7 @@ FABRICS_STAGES_WITH_SWATCH = [
 
 # Fabrics — without swatch (direct bulk order)
 FABRICS_STAGES_NO_SWATCH = [
-    ("order_placed",             "Advance Pending"),
+    ("order_placed",             "Order Placed"),
     ("advance_paid",             "Advance Paid"),
     ("bulk_production",          "Bulk production"),
     ("quality_inspection",       "Quality Inspection"),
@@ -318,7 +318,7 @@ class Order(models.Model):
         Returns a list of dicts: [{'value': '...', 'label': '...', 'status': '...', 'date': '...', 'notes': '...'}]
         """
         stages = [
-            {"value": "order_placed", "label": "Advance Pending"}
+            {"value": "order_placed", "label": "Order Placed"}
         ]
 
         # Use prefetchable stage_history
