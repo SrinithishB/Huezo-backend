@@ -86,9 +86,26 @@ class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
             obj.created_by_admin = request.user
         super().save_model(request, obj, form, change)
 
-    def has_view_permission(self, request, obj=None):   return True
-    def has_change_permission(self, request, obj=None): return True
-    def has_add_permission(self, request):              return True
+    def has_view_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_view_permission(request, obj)
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_change_permission(request, obj)
+        return True
+
+    def has_add_permission(self, request):
+        if request.user.is_superuser:
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_add_permission(request)
+        return True
 
 
 @admin.register(WLPrototypeImage)
@@ -208,9 +225,26 @@ class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-    def has_view_permission(self, request, obj=None):   return True
-    def has_change_permission(self, request, obj=None): return True
-    def has_add_permission(self, request):              return True
+    def has_view_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_view_permission(request, obj)
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_change_permission(request, obj)
+        return True
+
+    def has_add_permission(self, request):
+        if request.user.is_superuser:
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_add_permission(request)
+        return True
 
 
 @admin.register(FabricsCatalogueImage)

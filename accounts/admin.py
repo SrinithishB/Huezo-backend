@@ -1,12 +1,36 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from huezo_backend.admin_mixins import RowActionsMixin
 from .models import User, Customer
 
 
+class CustomUserChangeForm(UserChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for fld in ["username", "first_name", "last_name", "date_joined", "last_login"]:
+            if fld in self.fields:
+                self.fields.pop(fld)
+
+
+class CustomUserCreationForm(UserCreationForm):
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ("email", "role")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "username" in self.fields:
+            self.fields.pop("username")
+
+
 @admin.register(User)
 class UserAdmin(RowActionsMixin, BaseUserAdmin, ModelAdmin):
+    form = CustomUserChangeForm
+    add_form = CustomUserCreationForm
+    change_password_form = AdminPasswordChangeForm
+
     list_display    = ["email", "role", "is_active", "is_staff", "is_superuser", "created_at", "row_actions"]
     list_filter     = ["role", "is_active", "is_staff"]
     search_fields   = ["email"]
@@ -20,6 +44,7 @@ class UserAdmin(RowActionsMixin, BaseUserAdmin, ModelAdmin):
         ("Account",    {"fields": ("id", "email", "password")}),
         ("Role",       {"fields": ("role",)}),
         ("Status",     {"fields": ("is_active", "is_staff", "is_superuser")}),
+        ("Permissions", {"fields": ("groups", "user_permissions")}),
         ("Lockout",    {"fields": ("failed_login_attempts", "locked_until")}),
         ("Timestamps", {"fields": ("last_login_at", "created_at", "updated_at")}),
     )
@@ -33,11 +58,15 @@ class UserAdmin(RowActionsMixin, BaseUserAdmin, ModelAdmin):
     # ── Permission gates ──────────────────────────────────────────── #
 
     def has_add_permission(self, request):
-        """Only superadmin can create new users."""
+        """Only superadmin can create new users by default."""
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_add_permission(request)
         return request.user.is_superuser
 
     def has_delete_permission(self, request, obj=None):
-        """Only superadmin can delete users."""
+        """Only superadmin can delete users by default."""
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_delete_permission(request, obj)
         return request.user.is_superuser
 
     def has_change_permission(self, request, obj=None):
@@ -49,6 +78,8 @@ class UserAdmin(RowActionsMixin, BaseUserAdmin, ModelAdmin):
         """
         if request.user.is_superuser:
             return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_change_permission(request, obj)
         if request.user.role == "admin":
             return True
         return False
@@ -91,7 +122,11 @@ class CustomerAdmin(RowActionsMixin, ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_add_permission(request)
         return request.user.is_superuser or request.user.role == "admin"
 
     def has_delete_permission(self, request, obj=None):
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_delete_permission(request, obj)
         return request.user.is_superuser

@@ -79,6 +79,11 @@ class User(AbstractBaseUser, PermissionsMixin):
             return False
         if self.is_superuser:
             return True
+
+        # If the user belongs to a group or has specific user_permissions, respect those
+        if self.groups.exists() or self.user_permissions.exists():
+            return super().has_perm(perm, obj)
+
         if self.role == UserRole.ADMIN:
             # Admin can do everything EXCEPT create or delete users
             blocked_perms = {
@@ -99,6 +104,11 @@ class User(AbstractBaseUser, PermissionsMixin):
             return False
         if self.is_superuser:
             return True
+
+        # If the user belongs to a group or has specific user_permissions, respect those
+        if self.groups.exists() or self.user_permissions.exists():
+            return super().has_module_perms(app_label)
+
         if self.role in (UserRole.ADMIN, UserRole.STAFF):
             return True
         return False
