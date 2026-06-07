@@ -164,6 +164,12 @@ class OrderDetailView(APIView):
         if not order:
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
         
+        if not order.is_size_breakdown_editable:
+            return Response(
+                {"error": "Size breakdown can only be edited before the order is confirmed."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Customers and staff can edit size breakdown
         from .serializers import OrderSizeBreakdownUpdateSerializer
         serializer = OrderSizeBreakdownUpdateSerializer(order, data=request.data, partial=True)
@@ -1029,6 +1035,12 @@ class OrderPOSummaryView(APIView):
         except Order.DoesNotExist:
             return Response({"error": "Order not found."}, status=404)
 
+        if not order.is_po_summary_available:
+            return Response(
+                {"error": "PO Summary is not generated yet. It is generated once the order reaches the confirmed stage."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             profile = order.customer_user.customer_profile
         except Exception:
@@ -1300,13 +1312,13 @@ def _generate_po_summary_pdf(order, profile):
     # ══════════════════════════════════════════════════════════════════
     cost_rows = []
     if order.unit_price:
-        cost_rows.append(("Unit Rate", f"₹{order.unit_price}"))
+        cost_rows.append(("Unit Rate", f"Rs. {order.unit_price}"))
     if order.gst_percentage:
         cost_rows.append(("GST Rate", f"{order.gst_percentage}%"))
     if order.total_amount:
-        cost_rows.append(("Total Estimated Amount", f"₹{order.total_amount}"))
+        cost_rows.append(("Total Estimated Amount", f"Rs. {order.total_amount}"))
     if order.advance_amount:
-        cost_rows.append(("Advance Amount", f"₹{order.advance_amount}"))
+        cost_rows.append(("Advance Amount", f"Rs. {order.advance_amount}"))
 
     if cost_rows:
         cost_table = Table(
@@ -1324,6 +1336,20 @@ def _generate_po_summary_pdf(order, profile):
         story.append(Spacer(1, 2*mm))
         story.append(cost_table)
         story.append(Spacer(1, 6*mm))
+
+    # ══════════════════════════════════════════════════════════════════
+    #  TERMS & CONDITIONS
+    # ══════════════════════════════════════════════════════════════════
+    terms_text = (
+        "<b>Terms & Conditions:</b><br/>"
+        "This PO Summary is automatically generated based on the order details confirmed by the customer through the Huezo App. "
+        "Customers are requested to verify all specifications, quantities, sizes, and shipping details immediately upon receipt. "
+        "Any modification request must be submitted to Huezo and may be subject to feasibility, additional charges, and revised delivery timelines. "
+        "Production may commence based on this PO Summary, and changes requested after production initiation may not be accommodated. "
+        "Failure to report discrepancies within 24 hours shall be deemed acceptance of the PO details."
+    )
+    story.append(Paragraph(terms_text, ps("terms", fontSize=7, fontName="Helvetica", textColor=C_MUTED, leading=10)))
+    story.append(Spacer(1, 4*mm))
 
     # ══════════════════════════════════════════════════════════════════
     #  FOOTER

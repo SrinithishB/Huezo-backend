@@ -284,6 +284,51 @@ class Order(models.Model):
             models.Index(fields=["customer_user"], name="idx_order_customer"),
         ]
 
+    def clean(self):
+        super().clean()
+        if self.status == "order_confirmed" and self.order_type in ("white_label", "private_label"):
+            from django.core.exceptions import ValidationError
+            errors = {}
+            if not self.total_amount or self.total_amount <= 0:
+                errors["total_amount"] = "Total amount must be filled and greater than 0 to confirm the order."
+            if not self.advance_amount or self.advance_amount <= 0:
+                errors["advance_amount"] = "Advance amount must be filled and greater than 0 to confirm the order."
+            if errors:
+                raise ValidationError(errors)
+
+    @property
+    def is_po_summary_available(self):
+        if self.status == "cancelled":
+            return False
+        if self.order_type in ("white_label", "private_label"):
+            allowed = {
+                "order_confirmed", "advance_pending", "advance_paid", "bulk_production",
+                "quality_inspection", "packing", "payment_pending", "payment_done",
+                "dispatch", "shipment_tracking", "delivered", "rework_replacement_pending",
+                "order_completed"
+            }
+            return self.status in allowed
+        elif self.order_type == "fabrics":
+            if self.swatch_required:
+                allowed = {
+                    "swatch_approved", "advance_pending", "advance_paid", "bulk_production",
+                    "quality_inspection", "packing", "payment_pending", "payment_done",
+                    "dispatch", "shipment_tracking", "delivered"
+                }
+                return self.status in allowed
+            else:
+                return self.status != "order_placed"
+        return False
+
+    @property
+    def is_size_breakdown_editable(self):
+        if self.status == "cancelled":
+            return False
+        if self.order_type not in ("white_label", "private_label"):
+            return False
+        before_confirmed = {"order_placed", "sample_request", "sample_approval", "sample_rework"}
+        return self.status in before_confirmed
+
     def save(self, *args, **kwargs):
         if not self.order_number:
             from django.utils import timezone

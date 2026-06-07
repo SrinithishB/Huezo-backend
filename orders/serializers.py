@@ -559,6 +559,28 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
             )
         return value
 
+    def validate(self, attrs):
+        order = self.context["order"]
+        new_status = attrs.get("status")
+        
+        total_amount = attrs.get("total_amount")
+        if total_amount is None:
+            total_amount = order.total_amount
+            
+        advance_amount = attrs.get("advance_amount")
+        if advance_amount is None:
+            advance_amount = order.advance_amount
+            
+        if new_status == "order_confirmed" and order.order_type in ("white_label", "private_label"):
+            errors = {}
+            if not total_amount or total_amount <= 0:
+                errors["total_amount"] = "Total amount must be filled and greater than 0 to confirm the order."
+            if not advance_amount or advance_amount <= 0:
+                errors["advance_amount"] = "Advance amount must be filled and greater than 0 to confirm the order."
+            if errors:
+                raise serializers.ValidationError(errors)
+        return attrs
+
 
 class OrderSizeBreakdownUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -589,10 +611,13 @@ class OrderSizeBreakdownUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
+        order = self.instance
+        if not order.is_size_breakdown_editable:
+            raise serializers.ValidationError("Size breakdown can only be updated before order confirmation.")
+        
         size_breakdown = attrs.get("size_breakdown")
         if size_breakdown:
             total = sum(int(i["quantity"]) for i in size_breakdown)
-            order = self.instance
             if order.order_type == "white_label" and order.white_label_catalogue:
                 moq = order.white_label_catalogue.moq
                 if total < moq:

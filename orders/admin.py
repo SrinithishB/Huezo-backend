@@ -388,13 +388,16 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
             return "—"
 
         # 1. PO Summary link
-        po_url = reverse("order-po-summary", args=[obj.id])
-        po_link = format_html(
-            '<a href="{}" title="Download PO Summary" style="display:inline-flex;align-items:center;justify-content:center;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:4px 6px;border-radius:4px;margin-right:4px;transition:all 0.15s ease;" target="_blank">'
-            '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
-            '</a>',
-            po_url
-        )
+        if obj.is_po_summary_available:
+            po_url = reverse("order-po-summary", args=[obj.id])
+            po_link = format_html(
+                '<a href="{}" title="Download PO Summary" style="display:inline-flex;align-items:center;justify-content:center;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:4px 6px;border-radius:4px;margin-right:4px;transition:all 0.15s ease;" target="_blank">'
+                '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+                '</a>',
+                po_url
+            )
+        else:
+            po_link = ""
 
         # 2. Advance Invoice (if allowed)
         allowed_advance = {
@@ -430,6 +433,8 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
     def download_po_summary_link(self, obj):
         if not obj.pk:
             return "—"
+        if not obj.is_po_summary_available:
+            return mark_safe('<span style="color:#ef4444;font-size:12px;font-weight:600;">PO Summary is not generated yet (only available after order is confirmed)</span>')
         url = reverse("order-po-summary", args=[obj.id])
         return format_html(
             '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'

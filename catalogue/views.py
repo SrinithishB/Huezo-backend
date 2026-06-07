@@ -64,13 +64,24 @@ class CatalogueListView(generics.ListAPIView):
     filterset_class    = WLPrototypeFilter
     search_fields      = ["prototype_code", "garment_type", "collection_name"]
     ordering_fields    = ["created_at", "moq", "prototype_code"]
-    ordering           = ["-created_at"]
+    ordering           = ["sort_priority", "prebooking_close_date", "-created_at"]
 
     def get_queryset(self):
-        # Only return active prototypes to customers
-        return WLPrototype.objects.filter(
-            is_active=True
-        ).prefetch_related("images")
+        from django.utils import timezone
+        from django.db.models import Case, When, Value, IntegerField
+        
+        today = timezone.now().date()
+        qs = WLPrototype.objects.filter(is_active=True).prefetch_related("images")
+        
+        qs = qs.annotate(
+            sort_priority=Case(
+                When(is_prebooking=True, prebooking_close_date__gte=today, then=Value(1)),
+                When(is_prebooking=True, prebooking_close_date__lt=today, then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField(),
+            )
+        )
+        return qs.order_by("sort_priority", "prebooking_close_date", "-created_at")
 
 
 class CatalogueDetailView(generics.RetrieveAPIView):
