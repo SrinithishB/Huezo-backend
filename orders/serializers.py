@@ -77,6 +77,7 @@ class WLOrderCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     'Each item must have "size" and "quantity".'
                 )
+            item["size"] = str(item["size"]).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip()
             if int(item["quantity"]) <= 0:
                 raise serializers.ValidationError("Quantity must be greater than 0.")
         return value
@@ -180,6 +181,7 @@ class PLOrderCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     'Each item must have "size" and "quantity".'
                 )
+            item["size"] = str(item["size"]).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip()
             if int(item["quantity"]) <= 0:
                 raise serializers.ValidationError("Quantity must be greater than 0.")
         return value
@@ -577,6 +579,7 @@ class OrderSizeBreakdownUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     'Each item must have "size" and "quantity".'
                 )
+            item["size"] = str(item["size"]).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip()
             try:
                 qty = int(item["quantity"])
                 if qty <= 0:
@@ -685,6 +688,7 @@ class StaffWLOrderCreateSerializer(serializers.Serializer):
         for item in value:
             if "size" not in item or "quantity" not in item:
                 raise serializers.ValidationError('Each item must have "size" and "quantity".')
+            item["size"] = str(item["size"]).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip()
             if int(item["quantity"]) <= 0:
                 raise serializers.ValidationError("Quantity must be greater than 0.")
         return value
@@ -867,6 +871,7 @@ class StaffPLOrderCreateSerializer(serializers.Serializer):
         for item in value:
             if "size" not in item or "quantity" not in item:
                 raise serializers.ValidationError('Each item must have "size" and "quantity".')
+            item["size"] = str(item["size"]).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip()
             if int(item["quantity"]) <= 0:
                 raise serializers.ValidationError("Quantity must be greater than 0.")
         return value

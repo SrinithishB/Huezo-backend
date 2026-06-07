@@ -14,10 +14,10 @@ class FitSizesFormField(forms.CharField):
             try:
                 parsed = ast.literal_eval(value)
                 if isinstance(parsed, list):
-                    return [str(s).strip() for s in parsed if s]
+                    return [str(s).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip() for s in parsed if s]
             except Exception:
                 pass
-        return [s.strip() for s in value.split(',') if s.strip()]
+        return [str(s).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip() for s in value.split(',') if s.strip()]
 
     def prepare_value(self, value):
         if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
@@ -58,10 +58,10 @@ class FitSizesField(models.TextField):
             try:
                 parsed = ast.literal_eval(value)
                 if isinstance(parsed, list):
-                    return [str(s).strip() for s in parsed if s]
+                    return [str(s).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip() for s in parsed if s]
             except Exception:
                 pass
-        return [s.strip() for s in value.split(",") if s.strip()]
+        return [str(s).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip() for s in value.split(",") if s.strip()]
 
     def formfield(self, **kwargs):
         defaults = {'form_class': FitSizesFormField}
