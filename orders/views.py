@@ -1263,9 +1263,13 @@ def _generate_po_summary_pdf(order, profile):
         size_rows = [size_headers]
         
         for item in order.size_breakdown:
+            if not isinstance(item, dict):
+                continue
+            size_val = str(item.get("size", "")).replace('[', '').replace(']', '').replace("'", "").replace('"', '').strip()
+            qty_val = str(item.get("quantity", 0))
             size_rows.append([
-                Paragraph(str(item.get("size", "")), ps("szc", fontSize=9, fontName="Helvetica-Bold", alignment=TA_CENTER)),
-                Paragraph(str(item.get("quantity", 0)), ps("szq", fontSize=9, fontName="Helvetica", alignment=TA_CENTER))
+                Paragraph(size_val, ps("szc", fontSize=9, fontName="Helvetica-Bold", alignment=TA_CENTER)),
+                Paragraph(qty_val, ps("szq", fontSize=9, fontName="Helvetica", alignment=TA_CENTER))
             ])
             
         size_rows.append([
