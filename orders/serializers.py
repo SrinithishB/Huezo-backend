@@ -572,14 +572,16 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
         if advance_amount is None:
             advance_amount = order.advance_amount
             
+        errors = {}
         if new_status == "order_confirmed" and order.order_type in ("white_label", "private_label"):
-            errors = {}
             if not total_amount or total_amount <= 0:
                 errors["total_amount"] = "Total amount must be filled and greater than 0 to confirm the order."
             if not advance_amount or advance_amount <= 0:
                 errors["advance_amount"] = "Advance amount must be filled and greater than 0 to confirm the order."
-            if errors:
-                raise serializers.ValidationError(errors)
+        if total_amount is not None and advance_amount is not None and advance_amount > total_amount:
+            errors["advance_amount"] = "Advance amount cannot exceed the total amount."
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
 
 
@@ -901,6 +903,15 @@ class StaffPLOrderCreateSerializer(serializers.Serializer):
             if int(item["quantity"]) <= 0:
                 raise serializers.ValidationError("Quantity must be greater than 0.")
         return value
+
+    def validate(self, attrs):
+        total_amount = attrs.get("total_amount")
+        advance_amount = attrs.get("advance_amount")
+        if total_amount is not None and advance_amount is not None and advance_amount > total_amount:
+            raise serializers.ValidationError(
+                {"advance_amount": "Advance amount cannot exceed the total amount."}
+            )
+        return attrs
 
     def create(self, validated_data):
         from .models import OrderStageHistory, OrderType

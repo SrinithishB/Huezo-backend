@@ -43,7 +43,15 @@ class OrderWorkflowTests(TestCase):
         with self.assertRaises(ValidationError):
             order.clean()
 
-        # Both positive should succeed
+        # Try with advance_amount > total_amount
+        order.total_amount = 5000.00
+        order.advance_amount = 6000.00
+        with self.assertRaises(ValidationError) as ctx:
+            order.clean()
+        self.assertIn("advance_amount", ctx.exception.message_dict)
+
+        # Both positive and valid should succeed
+        order.total_amount = 5000.00
         order.advance_amount = 2500.00
         order.clean()
         order.save()
@@ -127,7 +135,16 @@ class OrderAPITests(APITestCase):
         self.assertIn("total_amount", response.data)
         self.assertIn("advance_amount", response.data)
         
-        # Succeeded with both filled
+        # Update with advance_amount > total_amount should fail API validation
+        response = self.client.patch(url, {
+            "status": "order_confirmed",
+            "total_amount": 5000.00,
+            "advance_amount": 6000.00
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("advance_amount", response.data)
+
+        # Succeeded with both filled and valid
         response = self.client.patch(url, {
             "status": "order_confirmed",
             "total_amount": 5000.00,

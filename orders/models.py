@@ -286,15 +286,17 @@ class Order(models.Model):
 
     def clean(self):
         super().clean()
+        errors = {}
         if self.status == "order_confirmed" and self.order_type in ("white_label", "private_label"):
-            from django.core.exceptions import ValidationError
-            errors = {}
             if not self.total_amount or self.total_amount <= 0:
                 errors["total_amount"] = "Total amount must be filled and greater than 0 to confirm the order."
             if not self.advance_amount or self.advance_amount <= 0:
                 errors["advance_amount"] = "Advance amount must be filled and greater than 0 to confirm the order."
-            if errors:
-                raise ValidationError(errors)
+        if self.total_amount is not None and self.advance_amount is not None and self.advance_amount > self.total_amount:
+            errors["advance_amount"] = "Advance amount cannot exceed the total amount."
+        if errors:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(errors)
 
     @property
     def is_po_summary_available(self):
