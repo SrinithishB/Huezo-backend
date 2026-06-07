@@ -12,6 +12,7 @@ from .views import (
     OrderInvoiceView,
     OrderAssignView,
     OrderCancelView,
+    OrderPOSummaryView,
 )
 
 urlpatterns = [
@@ -31,6 +32,9 @@ urlpatterns = [
 
     # ── Invoice (customer + admin) ─────────────────────────────────── #
     path("orders/<uuid:id>/invoice/", OrderInvoiceView.as_view(),     name="order-invoice"),
+
+    # ── PO Summary (customer + admin) ───────────────────────────────── #
+    path("orders/<uuid:id>/po-summary/", OrderPOSummaryView.as_view(), name="order-po-summary"),
 
     # ── Admin: update stage ────────────────────────────────────────── #
     path("orders/<uuid:id>/status/", OrderStatusUpdateView.as_view(), name="order-status-update"),

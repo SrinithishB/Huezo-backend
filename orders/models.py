@@ -28,19 +28,22 @@ class FabricType(models.TextChoices):
 
 PRIVATE_LABEL_STAGES = [
     ("order_placed",             "Order Placed"),
-    ("sample_request",           "Sample request"),
+    ("sample_request",           "Sample Request"),
     ("sample_approval",          "Sample Approved"),
+    ("order_confirmed",          "Order Confirmed"),
     ("sample_rework",            "Sample Rework"),
     ("advance_pending",          "Advance Pending"),
     ("advance_paid",             "Advance Paid"),
-    ("bulk_production",          "Bulk production"),
+    ("bulk_production",          "Bulk Production"),
     ("quality_inspection",       "Quality Inspection"),
     ("packing",                  "Packing"),
     ("payment_pending",          "Payment Pending"),
     ("payment_done",             "Payment Done"),
     ("dispatch",                 "Dispatch"),
-    ("shipment_tracking",        "Shippment tracking details"),
+    ("shipment_tracking",        "Shipment"),
     ("delivered",                "Delivered"),
+    ("rework_replacement_pending", "Rework / Replacement Pending"),
+    ("order_completed",          "Order Completed"),
 ]
 
 WHITE_LABEL_STAGES = PRIVATE_LABEL_STAGES
@@ -48,19 +51,19 @@ WHITE_LABEL_STAGES = PRIVATE_LABEL_STAGES
 # Fabrics — with swatch (when customer requests swatch before bulk)
 FABRICS_STAGES_WITH_SWATCH = [
     ("order_placed",             "Order Placed"),
-    ("swatch_sent",              "Swatch sent"),
+    ("swatch_sent",              "Swatch Sent"),
     ("swatch_received",          "Swatch Received"),
     ("swatch_approved",          "Swatch Approved"),
     ("swatch_rework",            "Swatch Rework"),
     ("advance_pending",          "Advance Pending"),
     ("advance_paid",             "Advance Paid"),
-    ("bulk_production",          "Bulk production"),
+    ("bulk_production",          "Bulk Production"),
     ("quality_inspection",       "Quality Inspection"),
     ("packing",                  "Packing"),
     ("payment_pending",          "Payment Pending"),
     ("payment_done",             "Payment Done"),
     ("dispatch",                 "Dispatch"),
-    ("shipment_tracking",        "Shippment tracking details"),
+    ("shipment_tracking",        "Shipment"),
     ("delivered",                "Delivered"),
 ]
 
@@ -69,13 +72,13 @@ FABRICS_STAGES_NO_SWATCH = [
     ("order_placed",             "Order Placed"),
     ("advance_pending",          "Advance Pending"),
     ("advance_paid",             "Advance Paid"),
-    ("bulk_production",          "Bulk production"),
+    ("bulk_production",          "Bulk Production"),
     ("quality_inspection",       "Quality Inspection"),
     ("packing",                  "Packing"),
     ("payment_pending",          "Payment Pending"),
     ("payment_done",             "Payment Done"),
     ("dispatch",                 "Dispatch"),
-    ("shipment_tracking",        "Shippment tracking details"),
+    ("shipment_tracking",        "Shipment"),
     ("delivered",                "Delivered"),
 ]
 
@@ -84,17 +87,20 @@ FABRICS_STAGES = FABRICS_STAGES_WITH_SWATCH  # superset for choices
 
 ALL_STATUS_CHOICES = list({s[0]: s for s in
     PRIVATE_LABEL_STAGES + WHITE_LABEL_STAGES + FABRICS_STAGES + [
-        ("sample_request", "Sample request"),
+        ("sample_request", "Sample Request"),
         ("sample_approval", "Sample Approved"),
         ("sample_rework", "Sample Rework"),
-        ("swatch_sent", "Swatch sent"),
+        ("order_confirmed", "Order Confirmed"),
+        ("swatch_sent", "Swatch Sent"),
         ("swatch_received", "Swatch Received"),
         ("swatch_approved", "Swatch Approved"),
         ("swatch_rework", "Swatch Rework"),
-        ("bulk_production", "Bulk production"),
+        ("bulk_production", "Bulk Production"),
         ("quality_inspection", "Quality Inspection"),
-        ("shipment_tracking", "Shippment tracking details"),
+        ("shipment_tracking", "Shipment"),
         ("advance_paid", "Advance Paid"),
+        ("rework_replacement_pending", "Rework / Replacement Pending"),
+        ("order_completed", "Order Completed"),
     ]
 }.values()) + [("cancelled", "Cancelled")]
 
@@ -326,6 +332,7 @@ class Order(models.Model):
 
         # Use prefetchable stage_history
         history = list(self.stage_history.all().order_by("changed_at"))
+        history_stages = {h.stage for h in history}
 
         swatch_rework_count = sum(1 for h in history if h.stage == "swatch_rework")
         sample_rework_count = sum(1 for h in history if h.stage == "sample_rework")
@@ -334,39 +341,45 @@ class Order(models.Model):
             if self.swatch_required:
                 for _ in range(swatch_rework_count):
                     stages.extend([
-                        {"value": "swatch_sent", "label": "Swatch sent"},
+                        {"value": "swatch_sent", "label": "Swatch Sent"},
                         {"value": "swatch_received", "label": "Swatch Received"},
                         {"value": "swatch_rework", "label": "Swatch Rework"},
                     ])
                 stages.extend([
-                    {"value": "swatch_sent", "label": "Swatch sent"},
+                    {"value": "swatch_sent", "label": "Swatch Sent"},
                     {"value": "swatch_received", "label": "Swatch Received"},
                     {"value": "swatch_approved", "label": "Swatch Approved"},
                 ])
         else: # white_label or private_label
             for _ in range(sample_rework_count):
                 stages.extend([
-                    {"value": "sample_request", "label": "Sample request"},
+                    {"value": "sample_request", "label": "Sample Request"},
                     {"value": "sample_rework", "label": "Sample Rework"},
                 ])
             stages.extend([
-                {"value": "sample_request", "label": "Sample request"},
+                {"value": "sample_request", "label": "Sample Request"},
                 {"value": "sample_approval", "label": "Sample Approved"},
+                {"value": "order_confirmed", "label": "Order Confirmed"},
             ])
 
         common_stages = [
             {"value": "advance_pending", "label": "Advance Pending"},
             {"value": "advance_paid", "label": "Advance Paid"},
-            {"value": "bulk_production", "label": "Bulk production"},
+            {"value": "bulk_production", "label": "Bulk Production"},
             {"value": "quality_inspection", "label": "Quality Inspection"},
             {"value": "packing", "label": "Packing"},
             {"value": "payment_pending", "label": "Payment Pending"},
             {"value": "payment_done", "label": "Payment Done"},
             {"value": "dispatch", "label": "Dispatch"},
-            {"value": "shipment_tracking", "label": "Shippment tracking details"},
+            {"value": "shipment_tracking", "label": "Shipment"},
             {"value": "delivered", "label": "Delivered"},
         ]
         stages.extend(common_stages)
+
+        if self.order_type in ("white_label", "private_label"):
+            if "rework_replacement_pending" in history_stages or self.status == "rework_replacement_pending":
+                stages.append({"value": "rework_replacement_pending", "label": "Rework / Replacement Pending"})
+            stages.append({"value": "order_completed", "label": "Order Completed"})
 
         for s in stages:
             s["status"] = "pending"

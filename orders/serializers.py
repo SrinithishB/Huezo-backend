@@ -415,29 +415,68 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 
     def get_wl_prototype(self, obj):
         if obj.white_label_catalogue:
+            request = self.context.get("request")
+            wl = obj.white_label_catalogue
+            thumbnail_url = request.build_absolute_uri(wl.thumbnail.url) if (wl.thumbnail and request) else (wl.thumbnail.url if wl.thumbnail else None)
+            
+            image_urls = []
+            for img in wl.images.all():
+                if img.image:
+                    url = request.build_absolute_uri(img.image.url) if request else img.image.url
+                    image_urls.append(url)
+
             return {
-                "id":             str(obj.white_label_catalogue.id),
-                "prototype_code": obj.white_label_catalogue.prototype_code,
-                "garment_type":   obj.white_label_catalogue.garment_type,
-                "for_gender":     obj.white_label_catalogue.for_gender,
-                "moq":            obj.white_label_catalogue.moq,
+                "id":             str(wl.id),
+                "prototype_code": wl.prototype_code,
+                "garment_type":   wl.garment_type,
+                "for_gender":     wl.for_gender,
+                "moq":            wl.moq,
+                "thumbnail_url":  thumbnail_url,
+                "image_urls":     image_urls,
             }
         return None
 
     def get_fabric(self, obj):
         if obj.fabric_catalogue:
+            request = self.context.get("request")
+            f = obj.fabric_catalogue
+            thumbnail = f.images.filter(is_thumbnail=True).first()
+            thumbnail_url = None
+            if thumbnail and thumbnail.image:
+                thumbnail_url = request.build_absolute_uri(thumbnail.image.url) if request else thumbnail.image.url
+            
+            image_urls = []
+            for img in f.images.all():
+                if img.image:
+                    url = request.build_absolute_uri(img.image.url) if request else img.image.url
+                    image_urls.append(url)
+
             return {
-                "id":            str(obj.fabric_catalogue.id),
-                "fabric_name":   obj.fabric_catalogue.fabric_name,
-                "fabric_type":   obj.fabric_catalogue.fabric_type,
-                "effective_moq": obj.fabric_catalogue.effective_moq,
+                "id":            str(f.id),
+                "fabric_name":   f.fabric_name,
+                "fabric_type":   f.fabric_type,
+                "effective_moq": f.effective_moq,
+                "thumbnail_url":  thumbnail_url,
+                "image_urls":     image_urls,
             }
         return None
 
     def get_pl_fabrics(self, obj):
         fabrics = []
+        request = self.context.get("request")
         for i, fabric in enumerate([obj.pl_fabric_1, obj.pl_fabric_2, obj.pl_fabric_3], start=1):
             if fabric:
+                thumbnail = fabric.images.filter(is_thumbnail=True).first()
+                thumbnail_url = None
+                if thumbnail and thumbnail.image:
+                    thumbnail_url = request.build_absolute_uri(thumbnail.image.url) if request else thumbnail.image.url
+                
+                image_urls = []
+                for img in fabric.images.all():
+                    if img.image:
+                        url = request.build_absolute_uri(img.image.url) if request else img.image.url
+                        image_urls.append(url)
+
                 fabrics.append({
                     "choice":      i,
                     "id":          str(fabric.id),
@@ -445,6 +484,8 @@ class OrderDetailSerializer(serializers.ModelSerializer):
                     "fabric_type": fabric.fabric_type,
                     "composition": fabric.composition,
                     "width_cm":    str(fabric.width_cm) if fabric.width_cm else None,
+                    "thumbnail_url": thumbnail_url,
+                    "image_urls":    image_urls,
                 })
         return fabrics
 
@@ -515,6 +556,61 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
                 f"Invalid status for {order.order_type}. Valid: {valid}"
             )
         return value
+
+
+class OrderSizeBreakdownUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ["size_breakdown"]
+
+    def validate_size_breakdown(self, value):
+        import json
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError(
+                    'Invalid JSON. Expected: [{"size":"S","quantity":60}]'
+                )
+        for item in value:
+            if "size" not in item or "quantity" not in item:
+                raise serializers.ValidationError(
+                    'Each item must have "size" and "quantity".'
+                )
+            try:
+                qty = int(item["quantity"])
+                if qty <= 0:
+                    raise serializers.ValidationError("Quantity must be greater than 0.")
+            except ValueError:
+                raise serializers.ValidationError("Quantity must be a valid integer.")
+        return value
+
+    def validate(self, attrs):
+        size_breakdown = attrs.get("size_breakdown")
+        if size_breakdown:
+            total = sum(int(i["quantity"]) for i in size_breakdown)
+            order = self.instance
+            if order.order_type == "white_label" and order.white_label_catalogue:
+                moq = order.white_label_catalogue.moq
+                if total < moq:
+                    raise serializers.ValidationError(
+                        {"size_breakdown": f"Total quantity ({total}) is below the MOQ ({moq}) for this prototype."}
+                    )
+        return attrs
+
+    def update(self, instance, validated_data):
+        size_breakdown = validated_data.get("size_breakdown")
+        instance.size_breakdown = size_breakdown
+        instance.fit_sizes = ",".join(i["size"] for i in size_breakdown)
+        instance.total_quantity = sum(int(i["quantity"]) for i in size_breakdown)
+        
+        # If there is a unit price, update total_amount and check if advance/payment needs recalculating
+        if instance.unit_price:
+            from decimal import Decimal
+            instance.total_amount = Decimal(str(instance.unit_price)) * Decimal(str(instance.total_quantity))
+        
+        instance.save()
+        return instance
 
 
 # ── ORDER NOTES ────────────────────────────────────────────────────────
