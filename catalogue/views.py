@@ -76,8 +76,8 @@ class CatalogueListView(generics.ListAPIView):
         qs = qs.annotate(
             sort_priority=Case(
                 When(is_prebooking=True, prebooking_close_date__gte=today, then=Value(1)),
-                When(is_prebooking=True, prebooking_close_date__lt=today, then=Value(2)),
-                default=Value(3),
+                When(is_prebooking=True, prebooking_close_date__lt=today, then=Value(3)),
+                default=Value(2),
                 output_field=IntegerField(),
             )
         )

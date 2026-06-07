@@ -64,10 +64,10 @@ class CatalogueSortingTests(APITestCase):
         # Priority 1: Active prebooks, sorted by prebooking_close_date ASC:
         #   - WL-03 (2 days from now)
         #   - WL-04 (10 days from now)
-        # Priority 2: Ended prebooks:
-        #   - WL-02 (-3 days from now)
-        # Priority 3: Non-prebooks:
+        # Priority 2: Non-prebooks:
         #   - WL-01
+        # Priority 3: Ended prebooks:
+        #   - WL-02 (-3 days from now)
         
         results = response.data.get("results", response.data)
         codes = [item["prototype_code"] for item in results]
@@ -80,8 +80,8 @@ class CatalogueSortingTests(APITestCase):
         annotated = db_qs.annotate(
             sort_priority=Case(
                 When(is_prebooking=True, prebooking_close_date__gte=today, then=Value(1)),
-                When(is_prebooking=True, prebooking_close_date__lt=today, then=Value(2)),
-                default=Value(3),
+                When(is_prebooking=True, prebooking_close_date__lt=today, then=Value(3)),
+                default=Value(2),
                 output_field=IntegerField(),
             )
         ).order_by("sort_priority", "prebooking_close_date", "-created_at")
@@ -90,5 +90,5 @@ class CatalogueSortingTests(APITestCase):
         for x in annotated:
             details.append(f"{x.prototype_code}: priority={x.sort_priority}, close={x.prebooking_close_date}, is_prebooking={x.is_prebooking}")
         
-        expected_codes = ["WL-03", "WL-04", "WL-02", "WL-01"]
+        expected_codes = ["WL-03", "WL-04", "WL-01", "WL-02"]
         self.assertEqual(codes, expected_codes, "\n".join(details))
