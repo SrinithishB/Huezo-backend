@@ -391,7 +391,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         po_url = reverse("order-po-summary", args=[obj.id])
         po_link = format_html(
             '<a href="{}" title="Download PO Summary" style="display:inline-flex;align-items:center;justify-content:center;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:4px 6px;border-radius:4px;margin-right:4px;transition:all 0.15s ease;" target="_blank">'
-            '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+            '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
             '</a>',
             po_url
         )
@@ -405,7 +405,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
             adv_url = reverse("order-invoice", args=[obj.id]) + "?type=advance"
             adv_link = format_html(
                 '<a href="{}" title="Download Advance Invoice" style="display:inline-flex;align-items:center;justify-content:center;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:4px 6px;border-radius:4px;margin-right:4px;transition:all 0.15s ease;" target="_blank">'
-                '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+                '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
                 '</a>',
                 adv_url
             )
@@ -417,7 +417,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
             final_url = reverse("order-invoice", args=[obj.id]) + "?type=final"
             final_link = format_html(
                 '<a href="{}" title="Download Final Invoice" style="display:inline-flex;align-items:center;justify-content:center;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe;padding:4px 6px;border-radius:4px;transition:all 0.15s ease;" target="_blank">'
-                '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+                '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
                 '</a>',
                 final_url
             )
@@ -433,7 +433,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         url = reverse("order-po-summary", args=[obj.id])
         return format_html(
             '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'
-            '  <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
+            '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
             '  Download PO Summary PDF'
             '</a>',
             url
@@ -452,7 +452,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         url = reverse("order-invoice", args=[obj.id]) + "?type=advance"
         return format_html(
             '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'
-            '  <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
+            '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
             '  Download Advance Invoice PDF'
             '</a>',
             url
@@ -467,7 +467,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         url = reverse("order-invoice", args=[obj.id]) + "?type=final"
         return format_html(
             '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'
-            '  <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
+            '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
             '  Download Final Invoice PDF'
             '</a>',
             url
