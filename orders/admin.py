@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.http import HttpResponse
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.urls import reverse
 from .models import Order, OrderStageHistory, OrderImage, OrderNote
 
 
@@ -153,7 +154,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         "assigned_to", "status", "swatch_badge",
         "total_quantity", "for_category",
         "garment_type", "payment_status_display",
-        "invoice_summary", "created_at", "row_actions",
+        "invoice_summary", "download_actions", "created_at", "row_actions",
     ]
     list_filter   = [
         "order_type", "status",
@@ -202,6 +203,9 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         "style_name", "message",
         "swatch_required",                             # ← read-only (set by customer)
         "payment_info",
+        "download_po_summary_link",
+        "download_advance_invoice_link",
+        "download_final_invoice_link",
         "created_at", "updated_at",
     ]
 
@@ -259,6 +263,9 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
                 "total_amount", "advance_amount", "payment_amount",
                 "unit_price", "hsn_code", "gst_percentage",
                 "payment_info",
+                "download_po_summary_link",
+                "download_advance_invoice_link",
+                "download_final_invoice_link",
             ),
             "description": (
                 "Set the payment amount and save — a Razorpay link is auto-created when "
@@ -375,6 +382,97 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         """
         return mark_safe(html)
     payment_info.short_description = "Payment Details"
+
+    def download_actions(self, obj):
+        if not obj.pk:
+            return "—"
+
+        # 1. PO Summary link
+        po_url = reverse("order-po-summary", args=[obj.id])
+        po_link = format_html(
+            '<a href="{}" title="Download PO Summary" style="display:inline-flex;align-items:center;justify-content:center;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:4px 6px;border-radius:4px;margin-right:4px;transition:all 0.15s ease;" target="_blank">'
+            '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+            '</a>',
+            po_url
+        )
+
+        # 2. Advance Invoice (if allowed)
+        allowed_advance = {
+            "advance_paid", "bulk_production", "quality_inspection", "packing",
+            "payment_pending", "payment_done", "dispatch", "shipment_tracking", "delivered"
+        }
+        if obj.status in allowed_advance:
+            adv_url = reverse("order-invoice", args=[obj.id]) + "?type=advance"
+            adv_link = format_html(
+                '<a href="{}" title="Download Advance Invoice" style="display:inline-flex;align-items:center;justify-content:center;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:4px 6px;border-radius:4px;margin-right:4px;transition:all 0.15s ease;" target="_blank">'
+                '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+                '</a>',
+                adv_url
+            )
+        else:
+            adv_link = ""
+
+        # 3. Final Invoice (if allowed)
+        if obj.status in ("payment_done", "dispatch", "shipment_tracking", "delivered"):
+            final_url = reverse("order-invoice", args=[obj.id]) + "?type=final"
+            final_link = format_html(
+                '<a href="{}" title="Download Final Invoice" style="display:inline-flex;align-items:center;justify-content:center;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe;padding:4px 6px;border-radius:4px;transition:all 0.15s ease;" target="_blank">'
+                '  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>'
+                '</a>',
+                final_url
+            )
+        else:
+            final_link = ""
+
+        return format_html('<div style="display:flex;">{}{}{}</div>', po_link, adv_link, final_link)
+    download_actions.short_description = "Downloads"
+
+    def download_po_summary_link(self, obj):
+        if not obj.pk:
+            return "—"
+        url = reverse("order-po-summary", args=[obj.id])
+        return format_html(
+            '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'
+            '  <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
+            '  Download PO Summary PDF'
+            '</a>',
+            url
+        )
+    download_po_summary_link.short_description = "PO Summary"
+
+    def download_advance_invoice_link(self, obj):
+        if not obj.pk:
+            return "—"
+        allowed_statuses = {
+            "advance_paid", "bulk_production", "quality_inspection", "packing",
+            "payment_pending", "payment_done", "dispatch", "shipment_tracking", "delivered"
+        }
+        if obj.status not in allowed_statuses:
+            return format_html('<span style="color:#ef4444;font-size:12px;font-weight:600;">Advance not paid yet</span>')
+        url = reverse("order-invoice", args=[obj.id]) + "?type=advance"
+        return format_html(
+            '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'
+            '  <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
+            '  Download Advance Invoice PDF'
+            '</a>',
+            url
+        )
+    download_advance_invoice_link.short_description = "Advance Invoice"
+
+    def download_final_invoice_link(self, obj):
+        if not obj.pk:
+            return "—"
+        if obj.status not in ("payment_done", "dispatch", "shipment_tracking", "delivered"):
+            return format_html('<span style="color:#ef4444;font-size:12px;font-weight:600;">Final payment not completed yet</span>')
+        url = reverse("order-invoice", args=[obj.id]) + "?type=final"
+        return format_html(
+            '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'
+            '  <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>'
+            '  Download Final Invoice PDF'
+            '</a>',
+            url
+        )
+    download_final_invoice_link.short_description = "Final Invoice"
 
     # ── Save logic ─────────────────────────────────────────────────── #
 

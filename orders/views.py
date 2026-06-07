@@ -5,6 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.authentication import SessionAuthentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import rest_framework as django_filters
 from django.http import HttpResponse
@@ -394,6 +396,7 @@ class OrderInvoiceView(APIView):
     Returns a branded PDF invoice.
     Can be type=advance or type=final.
     """
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request, id):
@@ -1008,6 +1011,7 @@ class OrderPOSummaryView(APIView):
     GET /api/orders/<uuid>/po-summary/
     Returns a branded PDF Purchase Order Summary.
     """
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request, id):
