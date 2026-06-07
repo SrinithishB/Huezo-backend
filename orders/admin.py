@@ -448,7 +448,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
             "payment_pending", "payment_done", "dispatch", "shipment_tracking", "delivered"
         }
         if obj.status not in allowed_statuses:
-            return format_html('<span style="color:#ef4444;font-size:12px;font-weight:600;">Advance not paid yet</span>')
+            return mark_safe('<span style="color:#ef4444;font-size:12px;font-weight:600;">Advance not paid yet</span>')
         url = reverse("order-invoice", args=[obj.id]) + "?type=advance"
         return format_html(
             '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'
@@ -463,7 +463,7 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
         if not obj.pk:
             return "—"
         if obj.status not in ("payment_done", "dispatch", "shipment_tracking", "delivered"):
-            return format_html('<span style="color:#ef4444;font-size:12px;font-weight:600;">Final payment not completed yet</span>')
+            return mark_safe('<span style="color:#ef4444;font-size:12px;font-weight:600;">Final payment not completed yet</span>')
         url = reverse("order-invoice", args=[obj.id]) + "?type=final"
         return format_html(
             '<a href="{}" style="display:inline-flex;align-items:center;gap:6px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;transition:all 0.15s ease;" target="_blank">'
