@@ -396,6 +396,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "customization_notes", "message", "fabric_type",
             "swatch_required",                              # ← NEW
             "status", "valid_stages",
+            "is_po_summary_available", "is_size_breakdown_editable",
             "payment_amount", "total_amount", "advance_amount",
             "unit_price", "hsn_code", "gst_percentage",
             "tracking_link", "tracking_code",
