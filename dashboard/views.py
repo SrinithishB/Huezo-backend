@@ -392,10 +392,187 @@ class DashboardSummaryView(APIView):
                 "payment_done":    ord["payment_done"],
                 "dispatched":      ord["dispatched"],
                 "delivered":       ord["delivered"],
-                "by_type": {
+                 "by_type": {
                     "private_label": ord["private_label"],
                     "white_label":   ord["white_label"],
                     "fabrics":       ord["fabrics"],
                 },
             },
         })
+
+
+def dashboard_callback(request, context):
+    """
+    Context callback for the Django Unfold admin dashboard.
+    Populates context with statistics and recent activity lists.
+    """
+    from enquiries.models import Enquiry
+    from orders.models import Order
+    from accounts.models import User
+    from payments.models import PaymentTransaction
+    from django.db.models import Sum, Count, Q
+    from datetime import datetime
+    import calendar
+    from django.utils import timezone
+
+    if not request.user or not request.user.is_authenticated:
+        return context
+
+    if request.user.role == "vendor":
+        from catalogue.models import WLPrototype, FabricsCatalogue
+
+        wl_stats = WLPrototype.objects.filter(created_by_admin=request.user).aggregate(
+            total=Count("id"),
+            active=Count("id", filter=Q(is_active=True)),
+        )
+
+        fabric_stats = FabricsCatalogue.objects.filter(created_by=request.user).aggregate(
+            total=Count("id"),
+            active=Count("id", filter=Q(is_active=True)),
+        )
+
+        wl_total = wl_stats["total"] or 0
+        wl_active = wl_stats["active"] or 0
+        wl_inactive = wl_total - wl_active
+
+        fabric_total = fabric_stats["total"] or 0
+        fabric_active = fabric_stats["active"] or 0
+        fabric_inactive = fabric_total - fabric_active
+
+        recent_wl = WLPrototype.objects.filter(created_by_admin=request.user).order_by("-created_at")[:5]
+        recent_fabrics = FabricsCatalogue.objects.filter(created_by=request.user).order_by("-created_at")[:5]
+
+        context.update({
+            "vendor_stats": {
+                "wl_total": wl_total,
+                "wl_active": wl_active,
+                "wl_inactive": wl_inactive,
+                "fabric_total": fabric_total,
+                "fabric_active": fabric_active,
+                "fabric_inactive": fabric_inactive,
+                "total_products": wl_total + fabric_total,
+                "total_active": wl_active + fabric_active,
+                "total_inactive": wl_inactive + fabric_inactive,
+            },
+            "recent_wl_products": recent_wl,
+            "recent_fabric_products": recent_fabrics,
+        })
+        return context
+
+    # Only superusers get custom dashboard stats/charts context
+    if not request.user.is_superuser:
+        return context
+
+    # Query statistics
+    enq_stats = Enquiry.objects.aggregate(
+        total=Count("id"),
+        unread=Count("id", filter=Q(is_viewed=False)),
+        new=Count("id", filter=Q(status="new")),
+    )
+    
+    ord_stats = Order.objects.aggregate(
+        total=Count("id"),
+        order_placed=Count("id", filter=Q(status="order_placed")),
+        payment_pending=Count("id", filter=Q(status="payment_pending")),
+        payment_done=Count("id", filter=Q(status="payment_done")),
+        delivered=Count("id", filter=Q(status="delivered")),
+        private_label=Count("id", filter=Q(order_type="private_label")),
+        white_label=Count("id", filter=Q(order_type="white_label")),
+        fabrics=Count("id", filter=Q(order_type="fabrics")),
+        total_revenue=Sum("total_amount", filter=Q(status__in=[
+            "advance_paid", "bulk_production", "quality_inspection", "packing",
+            "payment_done", "dispatch", "shipment_tracking", "delivered", "order_completed"
+        ]))
+    )
+    
+    user_stats = User.objects.aggregate(
+        total_customers=Count("id", filter=Q(role="customer")),
+        total_vendors=Count("id", filter=Q(role="vendor")),
+    )
+
+    # In-progress calculation (all statuses that aren't placed, payment pending/done, delivered, or cancelled)
+    completed_or_pending_stages = ["order_placed", "payment_pending", "payment_done", "delivered", "cancelled", "order_completed"]
+    in_progress_count = Order.objects.exclude(status__in=completed_or_pending_stages).count()
+
+    # 1. Calculate Last 6 Months Revenue Trend (Database-Agnostic)
+    revenue_trend = []
+    today = timezone.now().date()
+    for i in range(5, -1, -1):
+        year = today.year
+        month = today.month - i
+        if month <= 0:
+            month += 12
+            year -= 1
+        
+        start_date = datetime(year, month, 1, 0, 0, 0)
+        _, last_day = calendar.monthrange(year, month)
+        end_date = datetime(year, month, last_day, 23, 59, 59)
+        
+        # Filter paid/delivered orders for revenue calculation
+        monthly_sum = Order.objects.filter(
+            created_at__range=(start_date, end_date),
+            status__in=[
+                "advance_paid", "bulk_production", "quality_inspection", "packing",
+                "payment_done", "dispatch", "shipment_tracking", "delivered", "order_completed"
+            ]
+        ).aggregate(total=Sum("total_amount"))["total"] or 0
+        
+        month_name = calendar.month_abbr[month] + f" '{str(year)[2:]}"
+        revenue_trend.append({
+            "month": month_name,
+            "revenue": float(monthly_sum)
+        })
+
+    # 2. Calculate Enquiry Status Distribution
+    enq_status_counts = Enquiry.objects.values('status').annotate(count=Count('id'))
+    status_map = {item['status']: item['count'] for item in enq_status_counts}
+    enquiry_statuses = {
+        "New": status_map.get("new", 0),
+        "Contacted": status_map.get("contacted", 0),
+        "Prospect": status_map.get("prospect", 0),
+        "Accepted": status_map.get("accepted", 0),
+        "Closed": status_map.get("closed", 0),
+    }
+
+    # Recent lists
+    recent_enquiries = Enquiry.objects.select_related("assigned_to_user").order_by("-created_at")[:5]
+    recent_orders = Order.objects.select_related("customer_user").order_by("-created_at")[:5]
+    
+    # Generic relation helper to fetch content types for transactions
+    from django.contrib.contenttypes.models import ContentType
+    order_ct = ContentType.objects.get_for_model(Order)
+    recent_payments = PaymentTransaction.objects.select_related("paid_by").order_by("-created_at")[:5]
+
+    context.update({
+        "stats": {
+            "enquiries_total": enq_stats["total"],
+            "enquiries_unread": enq_stats["unread"],
+            "enquiries_new": enq_stats["new"],
+            "orders_total": ord_stats["total"],
+            "orders_placed": ord_stats["order_placed"],
+            "orders_in_progress": in_progress_count,
+            "orders_payment_pending": ord_stats["payment_pending"],
+            "orders_payment_done": ord_stats["payment_done"],
+            "orders_delivered": ord_stats["delivered"],
+            "total_revenue": ord_stats["total_revenue"] or 0,
+            "this_month_revenue": revenue_trend[-1]["revenue"] if revenue_trend else 0,
+            "total_customers": user_stats["total_customers"],
+            "total_vendors": user_stats["total_vendors"],
+        },
+        "recent_enquiries": recent_enquiries,
+        "recent_orders": recent_orders,
+        "recent_payments": recent_payments,
+        "charts": {
+            "revenue_months": [r["month"] for r in revenue_trend],
+            "revenue_values": [r["revenue"] for r in revenue_trend],
+            "order_types": ["Private Label", "White Label", "Fabrics"],
+            "order_values": [
+                ord_stats["private_label"] or 0,
+                ord_stats["white_label"] or 0,
+                ord_stats["fabrics"] or 0
+            ],
+            "enquiry_status_labels": list(enquiry_statuses.keys()),
+            "enquiry_status_values": list(enquiry_statuses.values()),
+        }
+    })
+    return context

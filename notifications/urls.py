@@ -8,6 +8,7 @@ from .views import (
     UnreadCountView,
     DeleteAllNotificationsView,
     NotificationDetailView,
+    admin_mark_all_read,
 )
 
 urlpatterns = [
@@ -19,6 +20,7 @@ urlpatterns = [
     path("notifications/delete-all/",    DeleteAllNotificationsView.as_view(),  name="notification-delete-all"),
     path("notifications/mark-read/",     MarkNotificationsReadView.as_view(),   name="notification-mark-read"),
     path("notifications/unread-count/",  UnreadCountView.as_view(),             name="notification-unread-count"),
+    path("notifications/mark-all-read/", admin_mark_all_read,                   name="admin-notifications-mark-all-read"),
 
     # Single notification — GET auto-marks as read, DELETE removes it
     path("notifications/<uuid:pk>/",     NotificationDetailView.as_view(),      name="notification-detail"),

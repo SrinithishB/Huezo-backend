@@ -1,0 +1,88 @@
+{% load i18n static unfold %}
+
+<div class="flex flex-row gap-4 items-center ml-auto">
+    {% if environment %}
+        {% include "unfold/helpers/label.html" with text=environment.0 type=environment.1 %}
+    {% endif %}
+
+    <!-- Notification Bell and Dropdown -->
+    {% if request.user.is_authenticated and request.user.is_staff %}
+    <div class="relative" id="admin-notification-bell-container">
+        <!-- Bell Icon Button -->
+        <button id="admin-notification-bell-btn" type="button" class="relative p-1.5 text-font-muted hover:text-font-default dark:text-font-muted-dark dark:hover:text-font-default-dark rounded-md hover:bg-base-100 dark:hover:bg-base-800 transition-colors focus:outline-none">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+            </svg>
+            {% if admin_unread_count > 0 %}
+            <span id="admin-notification-badge" class="absolute top-1 right-1 flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+            </span>
+            {% endif %}
+        </button>
+
+        <!-- Dropdown Menu -->
+        <div id="admin-notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-lg shadow-xl py-1 z-50 text-sm">
+            <!-- Dropdown Header -->
+            <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-100 dark:border-base-800">
+                <span class="font-semibold text-font-default dark:text-font-default-dark">Notifications ({{ admin_unread_count }})</span>
+                {% if admin_unread_count > 0 %}
+                <a href="/api/notifications/mark-all-read/" class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-medium">Mark all as read</a>
+                {% endif %}
+            </div>
+            
+            <!-- Dropdown Items -->
+            <div class="max-h-72 overflow-y-auto divide-y divide-base-100 dark:divide-base-800">
+                {% if admin_recent_notifications %}
+                    {% for n in admin_recent_notifications %}
+                    <div class="px-4 py-3 hover:bg-base-50 dark:hover:bg-base-800/50 transition-colors {% if not n.is_read %}bg-primary-500/5 dark:bg-primary-500/10{% endif %}">
+                        <p class="font-medium text-font-default dark:text-font-default-dark {% if not n.is_read %}font-semibold{% endif %}">{{ n.title }}</p>
+                        <p class="text-xs text-font-muted dark:text-font-muted-dark mt-1 line-clamp-2">{{ n.body }}</p>
+                        <span class="text-[10px] text-font-muted/85 dark:text-font-muted-dark/85 mt-1.5 block">{{ n.created_at|date:"d M Y H:i" }}</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="px-4 py-6 text-center text-font-muted dark:text-font-muted-dark">
+                        No notifications found
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Dropdown Footer -->
+            <div class="border-t border-base-100 dark:border-base-800 text-center px-4 py-2 bg-base-50 dark:bg-base-950 rounded-b-lg">
+                <a href="/admin/notifications/notification/" class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-medium block">View All Notifications</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% action_list %}
+
+    {% if nav_global_side %}
+        {{ nav_global_side }}
+    {% endif %}
+</div>
+
+<!-- Alpine-like JS for dropdown functionality -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const bellBtn = document.getElementById('admin-notification-bell-btn');
+        const dropdown = document.getElementById('admin-notification-dropdown');
+        const container = document.getElementById('admin-notification-bell-container');
+
+        if (bellBtn && dropdown) {
+            // Toggle dropdown
+            bellBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dropdown.classList.toggle('hidden');
+            });
+
+            // Close on click outside
+            document.addEventListener('click', function(e) {
+                if (container && !container.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+    });
+</script>

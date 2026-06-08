@@ -239,3 +239,20 @@ def send_order_stage_notification(order, stage: str):
             "order_number": num,
         },
     )
+
+
+def notify_superusers(title: str, body: str, data: dict = None):
+    """
+    Send a push notification (and log in-app notification) to all active superusers and admins.
+    """
+    from accounts.models import User
+    from django.db.models import Q
+
+    # Fetch active superusers and admins
+    admins = User.objects.filter(Q(is_superuser=True) | Q(role="admin"), is_active=True)
+    
+    for admin in admins:
+        try:
+            send_push(admin, title, body, data)
+        except Exception as e:
+            logger.error(f"Failed to send notification to admin {admin.email}: {e}")

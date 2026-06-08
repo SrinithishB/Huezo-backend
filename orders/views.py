@@ -96,6 +96,23 @@ class OrderCreateView(APIView):
         )
         if serializer.is_valid():
             order    = serializer.save()
+            
+            # Send notification to superusers/admins
+            try:
+                from notifications.service import notify_superusers
+                notify_superusers(
+                    "🛒 New Order Placed",
+                    f"Order {order.order_number} has been placed successfully by {order.customer_user.email}.",
+                    {
+                        "type": "new_order",
+                        "order_id": str(order.id),
+                        "order_number": order.order_number,
+                    }
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Order notification failed: {e}")
+                
             response = OrderDetailSerializer(order, context={"request": request})
             return Response(
                 {"message": "Order placed successfully.", "data": response.data},

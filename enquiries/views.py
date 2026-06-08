@@ -50,6 +50,23 @@ class EnquiryCreateView(APIView):
         )
         if serializer.is_valid():
             enquiry  = serializer.save()
+            
+            # Send notification to superusers/admins
+            try:
+                from notifications.service import notify_superusers
+                notify_superusers(
+                    "📩 New Enquiry Received",
+                    f"A new enquiry ({enquiry.enquiry_number}) was submitted by {enquiry.full_name} for {enquiry.get_order_type_display()}.",
+                    {
+                        "type": "new_enquiry",
+                        "enquiry_id": str(enquiry.id),
+                        "enquiry_number": enquiry.enquiry_number,
+                    }
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Enquiry notification failed: {e}")
+                
             response = EnquiryResponseSerializer(enquiry, context={'request': request})
             return Response(
                 {"message": "Enquiry submitted successfully.", "data": response.data},

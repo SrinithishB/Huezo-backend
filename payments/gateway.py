@@ -148,6 +148,35 @@ def _on_payment_success(transaction):
     elif transaction.payment_type == "ebook":
         _handle_ebook_payment_success(transaction)
 
+    # Notify superusers/admins about payment received
+    try:
+        from notifications.service import notify_superusers
+        paid_by_email = transaction.paid_by.email if transaction.paid_by else "Customer"
+        
+        # Build transaction reference details
+        order_number_str = ""
+        if transaction.payment_type == "order":
+            from orders.models import Order
+            try:
+                order = Order.objects.get(id=transaction.object_id)
+                order_number_str = f" for Order {order.order_number}"
+            except Order.DoesNotExist:
+                pass
+
+        notify_superusers(
+            "💳 Payment Received",
+            f"Payment of ₹{transaction.amount} received{order_number_str} from {paid_by_email}. Ref: {transaction.payment_reference or 'N/A'}.",
+            {
+                "type": "payment_received",
+                "transaction_id": str(transaction.id),
+                "amount": str(transaction.amount),
+                "payment_reference": transaction.payment_reference or "",
+            }
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Payment notification failed: {e}")
+
 
 def _on_payment_failed(transaction):
     """

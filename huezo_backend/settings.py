@@ -140,6 +140,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'notifications.context_processors.admin_notifications',
             ],
         },
     },
@@ -301,6 +302,7 @@ from django.urls import reverse_lazy
 from django.templatetags.static import static
 
 UNFOLD = {
+    "DASHBOARD_CALLBACK": "dashboard.views.dashboard_callback",
     "SITE_TITLE": "Huezo Administration",
     "SITE_HEADER": "Huezo Admin",
     "SITE_LOGO": {

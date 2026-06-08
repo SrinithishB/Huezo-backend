@@ -170,3 +170,20 @@ class NotificationDetailView(APIView):
 
         notification.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def admin_mark_all_read(request):
+    """
+    Mark all unread notifications as read for the logged-in staff/admin user,
+    then redirect back to the page they came from.
+    """
+    if request.user.is_staff:
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    referer = request.META.get("HTTP_REFERER")
+    if referer:
+        return redirect(referer)
+    return redirect("admin:index")

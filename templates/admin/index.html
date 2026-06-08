@@ -1,0 +1,682 @@
+{% extends "admin/index.html" %}
+{% load i18n static %}
+
+{% block content %}
+    {% if request.user.is_superuser %}
+    <!-- Custom Statistics Widgets -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <!-- Card 1: Total Revenue -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-font-muted dark:text-font-muted-dark">Total Revenue (Paid)</span>
+                <div class="p-2 bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 rounded-lg">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-font-default dark:text-font-default-dark">₹{{ stats.total_revenue|floatformat:2 }}</h2>
+            <div class="text-xs text-font-muted dark:text-font-muted-dark mt-2">
+                <span>This Month: <strong class="font-semibold text-green-600 dark:text-green-400">₹{{ stats.this_month_revenue|floatformat:2 }}</strong></span>
+            </div>
+        </div>
+
+        <!-- Card 2: Active Orders -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-font-muted dark:text-font-muted-dark">Active Orders</span>
+                <div class="p-2 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-lg">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                    </svg>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-font-default dark:text-font-default-dark">{{ stats.orders_in_progress }}</h2>
+            <div class="text-xs text-font-muted dark:text-font-muted-dark mt-2 flex flex-wrap gap-x-2">
+                <span>Total: <strong class="font-semibold">{{ stats.orders_total }}</strong></span>
+                <span>•</span>
+                <span>Placed: <strong class="font-semibold text-blue-500">{{ stats.orders_placed }}</strong></span>
+                <span>•</span>
+                <span>Unpaid: <strong class="font-semibold text-red-500">{{ stats.orders_payment_pending }}</strong></span>
+            </div>
+        </div>
+
+        <!-- Card 3: Enquiries Stats -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-font-muted dark:text-font-muted-dark">Unread Enquiries</span>
+                <div class="p-2 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 rounded-lg">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0l-7.5-4.615m19.5 0v-3a2.25 2.25 0 00-2.25-2.25h-15a2.25 2.25 0 00-2.25 2.25v3" />
+                    </svg>
+                </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <h2 class="text-2xl font-bold text-font-default dark:text-font-default-dark">{{ stats.enquiries_unread }}</h2>
+                {% if stats.enquiries_unread > 0 %}
+                <span class="bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400 border border-red-500/20 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap inline-block">ACTION REQUIRED</span>
+                {% endif %}
+            </div>
+            <p class="text-xs text-font-muted dark:text-font-muted-dark mt-2">Out of {{ stats.enquiries_total }} total enquiries submitted</p>
+        </div>
+
+        <!-- Card 4: Accounts Registered -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-font-muted dark:text-font-muted-dark">Users Breakdown</span>
+                <div class="p-2 bg-purple-50 dark:bg-purple-950/20 text-purple-600 dark:text-purple-400 rounded-lg">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 20M3.112 18.89a8.474 8.474 0 003.385.03m0 0a3.721 3.721 0 013.738-3.03h.031c1.08 0 2.057.462 2.74 1.2c.786.911 1.258 2.114 1.258 3.425v.002a2.125 2.125 0 01-2.125 2.125h-6.75A2.125 2.125 0 011 19.897v-.003c0-1.4.409-2.703 1.112-3.807v-.003A3.723 3.723 0 016.498 13h.03c1.077 0 2.053.46 2.736 1.196" />
+                    </svg>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-font-default dark:text-font-default-dark">{{ stats.total_customers|add:stats.total_vendors }}</h2>
+            <div class="text-xs text-font-muted dark:text-font-muted-dark mt-2 flex gap-x-2">
+                <span>Customers: <strong class="font-semibold">{{ stats.total_customers }}</strong></span>
+                <span>•</span>
+                <span>Vendors: <strong class="font-semibold">{{ stats.total_vendors }}</strong></span>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ApexCharts Library -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <!-- Chart 1: Revenue Trend -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <h3 class="font-bold text-sm text-font-default dark:text-font-default-dark mb-4">Monthly Revenue Curve</h3>
+            <div id="chart-revenue"></div>
+        </div>
+
+        <!-- Chart 2: Order Mix -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <h3 class="font-bold text-sm text-font-default dark:text-font-default-dark mb-4">Orders by Catalogue</h3>
+            <div id="chart-order-mix"></div>
+        </div>
+
+        <!-- Chart 3: Enquiry Pipeline -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <h3 class="font-bold text-sm text-font-default dark:text-font-default-dark mb-4">Enquiry Status Distribution</h3>
+            <div id="chart-enquiry"></div>
+        </div>
+    </div>
+
+    <!-- Scripts to initialize charts -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // ApexCharts global theme detection
+            const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+            const themeMode = isDark ? 'dark' : 'light';
+
+            // Chart 1: Revenue Trend
+            const optionsRevenue = {
+                series: [{
+                    name: 'Revenue (₹)',
+                    data: {{ charts.revenue_values|safe }}
+                }],
+                chart: {
+                    type: 'area',
+                    height: 230,
+                    toolbar: { show: false },
+                    zoom: { enabled: false },
+                    background: 'transparent',
+                    foreColor: '#9ca3af'
+                },
+                theme: { mode: themeMode },
+                colors: ['#10b981'],
+                dataLabels: { enabled: false },
+                stroke: { curve: 'smooth', width: 2 },
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.35,
+                        opacityTo: 0.05,
+                        stops: [0, 100]
+                    }
+                },
+                xaxis: {
+                    categories: {{ charts.revenue_months|safe }},
+                    axisBorder: { show: false },
+                    axisTicks: { show: false }
+                },
+                yaxis: {
+                    labels: {
+                        formatter: function (value) {
+                            return "₹" + Math.round(value).toLocaleString('en-IN');
+                        }
+                    }
+                },
+                grid: {
+                    borderColor: isDark ? '#1e293b' : '#f3f4f6',
+                    strokeDashArray: 4,
+                },
+                tooltip: {
+                    theme: themeMode,
+                    y: {
+                        formatter: function (val) {
+                            return "₹" + val.toLocaleString('en-IN')
+                        }
+                    }
+                }
+            };
+            const chartRevenue = new ApexCharts(document.querySelector("#chart-revenue"), optionsRevenue);
+            chartRevenue.render();
+
+            // Chart 2: Order Mix
+            const optionsOrderMix = {
+                series: {{ charts.order_values|safe }},
+                chart: {
+                    type: 'donut',
+                    height: 230,
+                    background: 'transparent',
+                    foreColor: '#9ca3af'
+                },
+                theme: { mode: themeMode },
+                labels: {{ charts.order_types|safe }},
+                colors: ['#0ea5e9', '#f59e0b', '#8b5cf6'],
+                plotOptions: {
+                    pie: {
+                        donut: {
+                            size: '65%',
+                            labels: {
+                                show: true,
+                                name: { show: true },
+                                value: {
+                                    show: true,
+                                    color: isDark ? '#f3f4f6' : '#1f2937',
+                                    formatter: function (val) { return val; }
+                                },
+                                total: {
+                                    show: true,
+                                    label: 'Total Orders',
+                                    color: '#9ca3af',
+                                    formatter: function (w) {
+                                        return w.globals.seriesTotals.reduce((a, b) => a + b, 0)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                dataLabels: { enabled: false },
+                legend: {
+                    position: 'bottom',
+                    labels: { colors: '#9ca3af' }
+                },
+                stroke: {
+                    show: true,
+                    colors: isDark ? ['#0f172a'] : ['#ffffff'],
+                    width: 2
+                },
+                tooltip: { theme: themeMode }
+            };
+            const chartOrderMix = new ApexCharts(document.querySelector("#chart-order-mix"), optionsOrderMix);
+            chartOrderMix.render();
+
+            // Chart 3: Enquiry Pipeline
+            const optionsEnquiry = {
+                series: [{
+                    name: 'Enquiries',
+                    data: {{ charts.enquiry_status_values|safe }}
+                }],
+                chart: {
+                    type: 'bar',
+                    height: 230,
+                    toolbar: { show: false },
+                    background: 'transparent',
+                    foreColor: '#9ca3af'
+                },
+                theme: { mode: themeMode },
+                plotOptions: {
+                    bar: {
+                        borderRadius: 4,
+                        horizontal: true,
+                        distributed: true,
+                        barHeight: '55%'
+                    }
+                },
+                colors: ['#f43f5e', '#3b82f6', '#f59e0b', '#10b981', '#6b7280'],
+                dataLabels: { enabled: false },
+                xaxis: {
+                    categories: {{ charts.enquiry_status_labels|safe }},
+                    axisBorder: { show: false },
+                    axisTicks: { show: false },
+                    labels: {
+                        formatter: function(val) {
+                            return Math.round(val);
+                        }
+                    }
+                },
+                grid: {
+                    borderColor: isDark ? '#1e293b' : '#f3f4f6',
+                    strokeDashArray: 4
+                },
+                legend: { show: false },
+                tooltip: { theme: themeMode }
+            };
+            const chartEnquiry = new ApexCharts(document.querySelector("#chart-enquiry"), optionsEnquiry);
+            chartEnquiry.render();
+
+            // Watch for Unfold theme changes (if toggled dynamically)
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === "attributes" && mutation.attributeName === "class") {
+                        const darkNow = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+                        const newTheme = darkNow ? 'dark' : 'light';
+                        const newGridColor = darkNow ? '#1e293b' : '#f3f4f6';
+                        const newValColor = darkNow ? '#f3f4f6' : '#1f2937';
+                        const newStrokeColor = darkNow ? '#0f172a' : '#ffffff';
+
+                        chartRevenue.updateOptions({
+                            theme: { mode: newTheme },
+                            grid: { borderColor: newGridColor },
+                            tooltip: { theme: newTheme }
+                        });
+                        chartOrderMix.updateOptions({
+                            theme: { mode: newTheme },
+                            plotOptions: {
+                                pie: {
+                                    donut: {
+                                        labels: {
+                                            value: { color: newValColor }
+                                        }
+                                    }
+                                }
+                            },
+                            stroke: { colors: [newStrokeColor] },
+                            tooltip: { theme: newTheme }
+                        });
+                        chartEnquiry.updateOptions({
+                            theme: { mode: newTheme },
+                            grid: { borderColor: newGridColor },
+                            tooltip: { theme: newTheme }
+                        });
+                    }
+                });
+            });
+            observer.observe(document.documentElement, { attributes: true });
+        });
+    </script>
+
+    <!-- Activity Log Panels -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Panel 1: Recent Orders -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-base-100 dark:border-base-800">
+                <h3 class="font-bold text-base text-font-default dark:text-font-default-dark">Recent Orders</h3>
+                <a href="/admin/orders/order/" class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-semibold">Manage Orders →</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="bg-base-50 dark:bg-base-950 text-[11px] font-semibold text-font-muted dark:text-font-muted-dark border-b border-base-100 dark:border-base-800 uppercase">
+                            <th class="px-5 py-3 whitespace-nowrap">Order No.</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Customer</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Status</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Qty</th>
+                            <th class="px-5 py-3 text-right whitespace-nowrap">Placed At</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-base-100 dark:divide-base-800">
+                        {% if recent_orders %}
+                            {% for order in recent_orders %}
+                            <tr class="hover:bg-base-50/50 dark:hover:bg-base-800/20 transition-colors">
+                                <td class="px-5 py-3.5 font-bold text-primary-600 dark:text-primary-400 whitespace-nowrap">
+                                    <a href="/admin/orders/order/{{ order.id }}/change/">{{ order.order_number }}</a>
+                                </td>
+                                <td class="px-4 py-3.5 text-font-default dark:text-font-default-dark truncate max-w-[150px] whitespace-nowrap" title="{{ order.customer_user.email }}">
+                                    {{ order.customer_user.email }}
+                                </td>
+                                <td class="px-4 py-3.5 whitespace-nowrap">
+                                    <span class="text-[9px] font-bold tracking-wider px-2.5 py-0.5 rounded-full uppercase whitespace-nowrap inline-block border
+                                        {% if order.status == 'delivered' or order.status == 'payment_done' or order.status == 'order_completed' %}
+                                            bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-500/20
+                                        {% elif order.status == 'order_placed' or order.status == 'advance_paid' %}
+                                            bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400 border-sky-500/20
+                                        {% elif order.status == 'cancelled' %}
+                                            bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 border-rose-500/20
+                                        {% else %}
+                                            bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border-amber-500/20
+                                        {% endif %}">
+                                        {{ order.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3.5 text-font-muted dark:text-font-muted-dark font-medium whitespace-nowrap">
+                                    {{ order.total_quantity }}
+                                </td>
+                                <td class="px-5 py-3.5 text-right text-xs text-font-muted dark:text-font-muted-dark whitespace-nowrap">
+                                    {{ order.created_at|date:"d M Y" }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="px-5 py-8 text-center text-font-muted dark:text-font-muted-dark">No orders found.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Panel 2: Recent Enquiries -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-base-100 dark:border-base-800">
+                <h3 class="font-bold text-base text-font-default dark:text-font-default-dark">Recent Enquiries</h3>
+                <a href="/admin/enquiries/enquiry/" class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-semibold">Manage Enquiries →</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="bg-base-50 dark:bg-base-950 text-[11px] font-semibold text-font-muted dark:text-font-muted-dark border-b border-base-100 dark:border-base-800 uppercase">
+                            <th class="px-5 py-3 whitespace-nowrap">Enquiry No.</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Full Name</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Type</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Status</th>
+                            <th class="px-5 py-3 text-right whitespace-nowrap">Received At</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-base-100 dark:divide-base-800">
+                        {% if recent_enquiries %}
+                            {% for enq in recent_enquiries %}
+                            <tr class="hover:bg-base-50/50 dark:hover:bg-base-800/20 transition-colors">
+                                <td class="px-5 py-3.5 font-bold text-primary-600 dark:text-primary-400 whitespace-nowrap">
+                                    <a href="/admin/enquiries/enquiry/{{ enq.id }}/change/">{{ enq.enquiry_number }}</a>
+                                </td>
+                                <td class="px-4 py-3.5 text-font-default dark:text-font-default-dark font-medium truncate max-w-[150px] whitespace-nowrap" title="{{ enq.full_name }}">
+                                    {{ enq.full_name }}
+                                </td>
+                                <td class="px-4 py-3.5 text-font-muted dark:text-font-muted-dark truncate max-w-[120px] whitespace-nowrap" title="{{ enq.get_order_type_display }}">
+                                    {{ enq.get_order_type_display }}
+                                </td>
+                                <td class="px-4 py-3.5 whitespace-nowrap">
+                                    <span class="text-[9px] font-bold tracking-wider px-2.5 py-0.5 rounded-full uppercase whitespace-nowrap inline-block border
+                                        {% if enq.status == 'new' %}
+                                            bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 border-rose-500/20
+                                        {% elif enq.status == 'accepted' %}
+                                            bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-500/20
+                                        {% elif enq.status == 'contacted' or enq.status == 'prospect' %}
+                                            bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400 border-sky-500/20
+                                        {% else %}
+                                            bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border-amber-500/20
+                                        {% endif %}">
+                                        {{ enq.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-3.5 text-right text-xs text-font-muted dark:text-font-muted-dark whitespace-nowrap">
+                                    {{ enq.created_at|date:"d M Y" }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="px-5 py-8 text-center text-font-muted dark:text-font-muted-dark font-medium">No enquiries found.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wide Panel: Recent Payments -->
+    <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl shadow-sm mb-6">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-base-100 dark:border-base-800">
+            <h3 class="font-bold text-base text-font-default dark:text-font-default-dark">Recent Transactions</h3>
+            <a href="/admin/payments/paymenttransaction/" class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-semibold">View All Transactions →</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="bg-base-50 dark:bg-base-950 text-[11px] font-semibold text-font-muted dark:text-font-muted-dark border-b border-base-100 dark:border-base-800 uppercase">
+                        <th class="px-5 py-3 whitespace-nowrap">Transaction Ref</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Type</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Paid By</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Amount</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Status</th>
+                        <th class="px-5 py-3 text-right whitespace-nowrap">Payment Date</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-base-100 dark:divide-base-800">
+                    {% if recent_payments %}
+                        {% for tx in recent_payments %}
+                        <tr class="hover:bg-base-50/50 dark:hover:bg-base-800/20 transition-colors">
+                            <td class="px-5 py-3.5 font-bold text-font-default dark:text-font-default-dark truncate max-w-[150px] whitespace-nowrap" title="{{ tx.payment_reference }}">
+                                {{ tx.payment_reference|default:"—" }}
+                            </td>
+                            <td class="px-4 py-3.5 text-font-default dark:text-font-default-dark font-medium capitalize whitespace-nowrap">
+                                {{ tx.payment_type }}
+                            </td>
+                            <td class="px-4 py-3.5 text-font-muted dark:text-font-muted-dark truncate max-w-[200px] whitespace-nowrap" title="{{ tx.paid_by.email }}">
+                                {{ tx.paid_by.email|default:"Anonymous" }}
+                            </td>
+                            <td class="px-4 py-3.5 font-semibold text-font-default dark:text-font-default-dark whitespace-nowrap">
+                                ₹{{ tx.amount|floatformat:2 }}
+                            </td>
+                            <td class="px-4 py-3.5 whitespace-nowrap">
+                                <span class="text-[9px] font-bold tracking-wider px-2.5 py-0.5 rounded-full uppercase whitespace-nowrap inline-block border
+                                    {% if tx.status == 'paid' %}
+                                        bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-500/20
+                                    {% elif tx.status == 'failed' %}
+                                        bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 border-rose-500/20
+                                    {% else %}
+                                        bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border-amber-500/20
+                                    {% endif %}">
+                                    {{ tx.status }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-3.5 text-right text-xs text-font-muted dark:text-font-muted-dark whitespace-nowrap">
+                                {{ tx.paid_at|date:"d M Y H:i"|default:"—" }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-5 py-8 text-center text-font-muted dark:text-font-muted-dark font-medium">No transactions found.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+    </div>
+    {% elif request.user.role == 'vendor' %}
+    <!-- Vendor Statistics Widgets -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <!-- Card 1: Total Products -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-font-muted dark:text-font-muted-dark">Total Products</span>
+                <div class="p-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                    </svg>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-font-default dark:text-font-default-dark">{{ vendor_stats.total_products }}</h2>
+            <div class="text-xs text-font-muted dark:text-font-muted-dark mt-2">
+                <span>All uploaded catalogue items</span>
+            </div>
+        </div>
+
+        <!-- Card 2: Active Products -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-font-muted dark:text-font-muted-dark">Active Products</span>
+                <div class="p-2 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-font-default dark:text-font-default-dark">{{ vendor_stats.total_active }}</h2>
+            <div class="text-xs text-font-muted dark:text-font-muted-dark mt-2">
+                <span>Visible: <strong class="font-semibold text-emerald-600 dark:text-emerald-400">{{ vendor_stats.total_active }}</strong> | Inactive: <strong class="font-semibold">{{ vendor_stats.total_inactive }}</strong></span>
+            </div>
+        </div>
+
+        <!-- Card 3: WL Prototypes Uploaded -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-font-muted dark:text-font-muted-dark">WL Prototypes</span>
+                <div class="p-2 bg-sky-50 dark:bg-sky-950/20 text-sky-600 dark:text-sky-400 rounded-lg">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.356 3.963l.89 8.175a2.15 2.15 0 01-1.848 2.379l-8.175.89a2.15 2.15 0 01-2.379-1.848l-.89-8.175a2.15 2.15 0 011.848-2.379l8.175-.89a2.15 2.15 0 012.379 1.848z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 9h.008v.008H9V9zm.008 2.25H9V12.75h.008v-.008zM12 9h.008v.008H12V9zm.008 2.25H12V12.75h.008v-.008zM15 9h.008v.008H15V9zm.008 2.25H15V12.75h.008v-.008z" />
+                    </svg>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-font-default dark:text-font-default-dark">{{ vendor_stats.wl_total }}</h2>
+            <div class="text-xs text-font-muted dark:text-font-muted-dark mt-2">
+                <span>Active: <strong class="font-semibold text-sky-600 dark:text-sky-400">{{ vendor_stats.wl_active }}</strong> | Inactive: <strong class="font-semibold">{{ vendor_stats.wl_inactive }}</strong></span>
+            </div>
+        </div>
+
+        <!-- Card 4: Fabrics Catalogued -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl p-5 shadow-sm transition-all hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-font-muted dark:text-font-muted-dark">Fabrics Sourced</span>
+                <div class="p-2 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 rounded-lg">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122l9.37-9.37a9.003 9.003 0 11-12.761 12.761 9.003 9.003 0 0112.761-12.761L9.53 16.122z" />
+                    </svg>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-font-default dark:text-font-default-dark">{{ vendor_stats.fabric_total }}</h2>
+            <div class="text-xs text-font-muted dark:text-font-muted-dark mt-2">
+                <span>Active: <strong class="font-semibold text-amber-600 dark:text-amber-400">{{ vendor_stats.fabric_active }}</strong> | Inactive: <strong class="font-semibold">{{ vendor_stats.fabric_inactive }}</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Product Tables -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Panel 1: Recent White Label Prototypes -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-base-100 dark:border-base-800">
+                <h3 class="font-bold text-base text-font-default dark:text-font-default-dark">Recent WL Prototypes</h3>
+                <a href="/admin/catalogue/wlprototype/" class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-semibold">Manage Prototypes →</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="bg-base-50 dark:bg-base-950 text-[11px] font-semibold text-font-muted dark:text-font-muted-dark border-b border-base-100 dark:border-base-800 uppercase">
+                            <th class="px-5 py-3 whitespace-nowrap">Code</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Category</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Gender</th>
+                            <th class="px-4 py-3 whitespace-nowrap">MOQ</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Status</th>
+                            <th class="px-5 py-3 text-right whitespace-nowrap">Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-base-100 dark:divide-base-800">
+                        {% if recent_wl_products %}
+                            {% for product in recent_wl_products %}
+                            <tr class="hover:bg-base-50/50 dark:hover:bg-base-800/20 transition-colors">
+                                <td class="px-5 py-3.5 font-bold text-primary-600 dark:text-primary-400 whitespace-nowrap">
+                                    <a href="/admin/catalogue/wlprototype/{{ product.id }}/change/">{{ product.prototype_code }}</a>
+                                </td>
+                                <td class="px-4 py-3.5 text-font-default dark:text-font-default-dark font-medium truncate max-w-[150px] whitespace-nowrap">
+                                    {{ product.garment_type }}
+                                </td>
+                                <td class="px-4 py-3.5 text-font-muted dark:text-font-muted-dark capitalize whitespace-nowrap">
+                                    {{ product.get_for_gender_display }}
+                                </td>
+                                <td class="px-4 py-3.5 text-font-default dark:text-font-default-dark whitespace-nowrap">
+                                    {{ product.moq }} pcs
+                                </td>
+                                <td class="px-4 py-3.5 whitespace-nowrap">
+                                    <span class="text-[9px] font-bold tracking-wider px-2.5 py-0.5 rounded-full uppercase whitespace-nowrap inline-block border
+                                        {% if product.is_active %}
+                                            bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-500/20
+                                        {% else %}
+                                            bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 border-rose-500/20
+                                        {% endif %}">
+                                        {% if product.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-3.5 text-right text-xs text-font-muted dark:text-font-muted-dark whitespace-nowrap">
+                                    {{ product.created_at|date:"d M Y" }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="px-5 py-8 text-center text-font-muted dark:text-font-muted-dark font-medium">No white label prototypes found.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Panel 2: Recent Fabrics Catalogue -->
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-base-100 dark:border-base-800">
+                <h3 class="font-bold text-base text-font-default dark:text-font-default-dark">Recent Fabrics</h3>
+                <a href="/admin/catalogue/fabricscatalogue/" class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-semibold">Manage Fabrics →</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="bg-base-50 dark:bg-base-950 text-[11px] font-semibold text-font-muted dark:text-font-muted-dark border-b border-base-100 dark:border-base-800 uppercase">
+                            <th class="px-5 py-3 whitespace-nowrap">Fabric Name</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Type</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Composition</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Price/Mtr</th>
+                            <th class="px-4 py-3 whitespace-nowrap">Status</th>
+                            <th class="px-5 py-3 text-right whitespace-nowrap">Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-base-100 dark:divide-base-800">
+                        {% if recent_fabric_products %}
+                            {% for fabric in recent_fabric_products %}
+                            <tr class="hover:bg-base-50/50 dark:hover:bg-base-800/20 transition-colors">
+                                <td class="px-5 py-3.5 font-bold text-primary-600 dark:text-primary-400 truncate max-w-[150px] whitespace-nowrap">
+                                    <a href="/admin/catalogue/fabricscatalogue/{{ fabric.id }}/change/">{{ fabric.fabric_name }}</a>
+                                </td>
+                                <td class="px-4 py-3.5 text-font-default dark:text-font-default-dark font-medium capitalize whitespace-nowrap">
+                                    {{ fabric.get_fabric_type_display }}
+                                </td>
+                                <td class="px-4 py-3.5 text-font-muted dark:text-font-muted-dark truncate max-w-[150px] whitespace-nowrap" title="{{ fabric.composition }}">
+                                    {{ fabric.composition|default:"—" }}
+                                </td>
+                                <td class="px-4 py-3.5 text-font-default dark:text-font-default-dark whitespace-nowrap">
+                                    {% if fabric.price_per_meter %}₹{{ fabric.price_per_meter }}{% else %}—{% endif %}
+                                </td>
+                                <td class="px-4 py-3.5 whitespace-nowrap">
+                                    <span class="text-[9px] font-bold tracking-wider px-2.5 py-0.5 rounded-full uppercase whitespace-nowrap inline-block border
+                                        {% if fabric.is_active %}
+                                            bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-500/20
+                                        {% else %}
+                                            bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 border-rose-500/20
+                                        {% endif %}">
+                                        {% if fabric.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-3.5 text-right text-xs text-font-muted dark:text-font-muted-dark whitespace-nowrap">
+                                    {{ fabric.created_at|date:"d M Y" }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="px-5 py-8 text-center text-font-muted dark:text-font-muted-dark font-medium">No fabrics found.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Django Standard Admin Index fallback lists -->
+    <div class="mt-8">
+        <h3 class="font-bold text-lg text-font-default dark:text-font-default-dark mb-4">Database Models</h3>
+    </div>
+    
+    {{ block.super }}
+{% endblock %}

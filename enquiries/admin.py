@@ -173,6 +173,14 @@ class EnquiryAdmin(RowActionsMixin, ModelAdmin):
             obj.viewed_at = timezone.now()
         super().save_model(request, obj, form, change)
 
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        obj = self.get_object(request, object_id)
+        if obj and not obj.is_viewed:
+            obj.is_viewed = True
+            obj.viewed_at = timezone.now()
+            obj.save(update_fields=['is_viewed', 'viewed_at'])
+        return super().change_view(request, object_id, form_url, extra_context)
+
     # ── Actions ────────────────────────────────────────────────────── #
 
     @admin.action(description="📥 Export selected enquiries to Excel")
