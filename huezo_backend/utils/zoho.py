@@ -124,7 +124,7 @@ class ZohoBooksClient:
             logger.error(f"Error creating Zoho contact: {e}")
             raise
 
-    def _build_description(self, order, prefix=""):
+    def _build_description(self, order, prefix="", transaction=None):
         desc_parts = [prefix] if prefix else []
         
         # Style details
@@ -159,6 +159,11 @@ class ZohoBooksClient:
             order_date_str = timezone.localtime(order.created_at).strftime("%d/%m/%Y")
             desc_parts.append(f"Order Placed: {order_date_str}")
 
+        # Payment Done Date (if transaction is paid)
+        if transaction and transaction.paid_at:
+            pay_done_str = timezone.localtime(transaction.paid_at).strftime("%d/%m/%Y")
+            desc_parts.append(f"Payment Done Date: {pay_done_str}")
+
         # Size Breakdown
         if order.size_breakdown:
             try:
@@ -185,13 +190,33 @@ class ZohoBooksClient:
         # Use local timezone order placement date
         order_date_str = timezone.localtime(order.created_at).strftime("%Y-%m-%d")
 
+        # ── Fetch payment transaction for this invoice type ──
+        from payments.models import PaymentTransaction
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(order)
+        
+        transaction = None
+        if invoice_type == "advance":
+            transaction = PaymentTransaction.objects.filter(
+                content_type=ct,
+                object_id=order.id,
+                status="paid",
+                notes__icontains="advance",
+            ).order_by("-paid_at").first()
+        else:
+            transaction = PaymentTransaction.objects.filter(
+                content_type=ct,
+                object_id=order.id,
+                status="paid",
+            ).exclude(notes__icontains="advance").order_by("-paid_at").first()
+
         # ── Item Details & Calculations ──
         if invoice_type == "advance":
             # For advance, subtotal = total_round / (1 + gst_pct / 100)
             total_amt = float(order.advance_amount or 0.0)
             subtotal = total_amt / (1.0 + gst_pct / 100.0)
             
-            desc = self._build_description(order, prefix=f"Advance Payment (50%) for Order {order.order_number}")
+            desc = self._build_description(order, prefix=f"Advance Payment (50%) for Order {order.order_number}", transaction=transaction)
             
             line_items = [{
                 "name": f"Advance Invoice - {order.order_number}",
@@ -207,7 +232,7 @@ class ZohoBooksClient:
             qty = float(order.total_quantity or 1)
             unit_price = float(order.unit_price or 0.0)
             
-            desc = self._build_description(order, prefix=f"Final Invoice for Order {order.order_number}")
+            desc = self._build_description(order, prefix=f"Final Invoice for Order {order.order_number}", transaction=transaction)
             
             line_items = [{
                 "name": f"Order Invoice - {order.order_number}",
