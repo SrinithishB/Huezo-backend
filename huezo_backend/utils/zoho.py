@@ -124,6 +124,56 @@ class ZohoBooksClient:
             logger.error(f"Error creating Zoho contact: {e}")
             raise
 
+    def _build_description(self, order, prefix=""):
+        desc_parts = [prefix] if prefix else []
+        
+        # Style details
+        if order.style_name:
+            desc_parts.append(f"Style: {order.style_name}")
+        if order.garment_type:
+            desc_parts.append(f"Garment: {order.garment_type}")
+            
+        # Collection / Prototype info
+        if order.white_label_catalogue:
+            wl = order.white_label_catalogue
+            coll_name = wl.collection_name or "N/A"
+            desc_parts.append(f"Collection: {coll_name} (Code: {wl.prototype_code})")
+            
+        # Fabric info
+        if order.fabric_catalogue:
+            desc_parts.append(f"Fabric: {order.fabric_catalogue.fabric_name}")
+            
+        # Alternate PL fabric selections
+        pl_fabrics = []
+        if hasattr(order, 'pl_fabric_1') and order.pl_fabric_1:
+            pl_fabrics.append(order.pl_fabric_1.fabric_name)
+        if hasattr(order, 'pl_fabric_2') and order.pl_fabric_2:
+            pl_fabrics.append(order.pl_fabric_2.fabric_name)
+        if hasattr(order, 'pl_fabric_3') and order.pl_fabric_3:
+            pl_fabrics.append(order.pl_fabric_3.fabric_name)
+        if pl_fabrics:
+            desc_parts.append(f"Selected Fabrics: {', '.join(pl_fabrics)}")
+
+        # Order Placed Date
+        if order.created_at:
+            order_date_str = timezone.localtime(order.created_at).strftime("%d/%m/%Y")
+            desc_parts.append(f"Order Placed: {order_date_str}")
+
+        # Size Breakdown
+        if order.size_breakdown:
+            try:
+                import json
+                sizes = order.size_breakdown
+                if isinstance(sizes, str):
+                    sizes = json.loads(sizes)
+                unit = "meters" if order.order_type == "fabrics" else "pcs"
+                size_strs = [f"{sb.get('size', '?')}: {sb.get('quantity', '?')} {unit}" for sb in sizes]
+                desc_parts.append(f"Size Breakdown: {', '.join(size_strs)}")
+            except Exception:
+                pass
+                
+        return "\n".join(desc_parts)
+
     def create_invoice(self, order, invoice_type="final"):
         """Create an invoice in Zoho Books."""
         headers = self.get_headers()
@@ -131,6 +181,9 @@ class ZohoBooksClient:
         contact_id = self.get_or_create_contact(customer)
 
         gst_pct = float(order.gst_percentage or 5.0)
+        
+        # Use local timezone order placement date
+        order_date_str = timezone.localtime(order.created_at).strftime("%Y-%m-%d")
 
         # ── Item Details & Calculations ──
         if invoice_type == "advance":
@@ -138,9 +191,7 @@ class ZohoBooksClient:
             total_amt = float(order.advance_amount or 0.0)
             subtotal = total_amt / (1.0 + gst_pct / 100.0)
             
-            desc = f"Advance Payment (50%) for Order {order.order_number}"
-            if order.style_name:
-                desc += f" - Style: {order.style_name}"
+            desc = self._build_description(order, prefix=f"Advance Payment (50%) for Order {order.order_number}")
             
             line_items = [{
                 "name": f"Advance Invoice - {order.order_number}",
@@ -156,9 +207,7 @@ class ZohoBooksClient:
             qty = float(order.total_quantity or 1)
             unit_price = float(order.unit_price or 0.0)
             
-            desc = f"Final Invoice for Order {order.order_number}"
-            if order.style_name:
-                desc += f" - Style: {order.style_name}"
+            desc = self._build_description(order, prefix=f"Final Invoice for Order {order.order_number}")
             
             line_items = [{
                 "name": f"Order Invoice - {order.order_number}",
@@ -173,8 +222,8 @@ class ZohoBooksClient:
         invoice_payload = {
             "customer_id": contact_id,
             "reference_number": inv_number,
-            "date": timezone.now().strftime("%Y-%m-%d"),
-            "due_date": timezone.now().strftime("%Y-%m-%d"),
+            "date": order_date_str,
+            "due_date": order_date_str,
             "line_items": line_items,
             "hsn_or_sac": order.hsn_code or ""
         }
@@ -236,12 +285,14 @@ class ZohoBooksClient:
         else:
             invoice_id = order.zoho_final_invoice_id or self.create_invoice(order, "final")
             amount = float(order.total_amount or 0.0) - float(order.advance_amount or 0.0)
+            
+        pay_date_str = timezone.localtime(transaction.paid_at).strftime("%Y-%m-%d") if transaction.paid_at else timezone.localtime(timezone.now()).strftime("%Y-%m-%d")
 
         payment_payload = {
             "customer_id": contact_id,
             "payment_mode": "Razorpay",
             "amount": round(amount, 2),
-            "date": timezone.now().strftime("%Y-%m-%d"),
+            "date": pay_date_str,
             "reference_number": transaction.payment_reference or "",
             "description": f"Razorpay payment ref: {transaction.payment_reference}",
             "invoices": [
@@ -271,22 +322,19 @@ class ZohoBooksClient:
         contact_id = self.get_or_create_contact(customer)
 
         # Build description
-        desc_parts = [order.order_type.replace('_', ' ').title()]
-        if order.garment_type:
-            desc_parts.append(order.garment_type)
-        if order.style_name:
-            desc_parts.append(order.style_name)
-
-        desc_str = " - ".join(desc_parts)
+        desc_str = self._build_description(order)
         rate = float(order.unit_price or 0.0)
         qty = float(order.total_quantity or 1)
+        
+        # Use local timezone order placement date
+        order_date_str = timezone.localtime(order.created_at).strftime("%Y-%m-%d")
 
         so_number = f"SO-{order.order_number}"
 
         so_payload = {
             "customer_id": contact_id,
             "reference_number": so_number,
-            "date": timezone.now().strftime("%Y-%m-%d"),
+            "date": order_date_str,
             "line_items": [
                 {
                     "name": f"Sales Order - {order.order_number}",
