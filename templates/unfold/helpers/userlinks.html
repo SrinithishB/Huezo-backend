@@ -6,7 +6,7 @@
     {% endif %}
 
     <!-- Notification Bell and Dropdown -->
-    {% if request.user.is_authenticated and request.user.is_staff %}
+    {% if request.user.is_authenticated and request.user.is_staff and request.user.role != 'vendor' %}
     <div class="relative" id="admin-notification-bell-container">
         <!-- Bell Icon Button -->
         <button id="admin-notification-bell-btn" type="button" class="relative p-1.5 text-font-muted hover:text-font-default dark:text-font-muted-dark dark:hover:text-font-default-dark rounded-md hover:bg-base-100 dark:hover:bg-base-800 transition-colors focus:outline-none">
