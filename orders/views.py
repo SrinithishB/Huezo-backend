@@ -467,7 +467,25 @@ class OrderInvoiceView(APIView):
             profile = None
 
         # ── Generate & return PDF ──────────────────────────────────────
-        pdf_bytes = _generate_invoice_pdf(order, transaction, profile, invoice_type=invoice_type)
+        from huezo_backend.utils.zoho import ZohoBooksClient
+        try:
+            zoho_client = ZohoBooksClient()
+            if invoice_type == "advance":
+                invoice_id = order.zoho_advance_invoice_id
+                if not invoice_id:
+                    invoice_id = zoho_client.create_invoice(order, invoice_type="advance")
+            else:
+                invoice_id = order.zoho_final_invoice_id
+                if not invoice_id:
+                    invoice_id = zoho_client.create_invoice(order, invoice_type="final")
+            pdf_bytes = zoho_client.get_invoice_pdf(invoice_id)
+        except Exception as e:
+            import logging
+            logging.getLogger("orders.views").warning(
+                f"Zoho Invoice PDF retrieval failed for {order.order_number}: {e}. Falling back to local PDF."
+            )
+            pdf_bytes = _generate_invoice_pdf(order, transaction, profile, invoice_type=invoice_type)
+
         response  = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = (
             f'attachment; filename="Invoice-{order.order_number}.pdf"'
@@ -1046,7 +1064,21 @@ class OrderPOSummaryView(APIView):
         except Exception:
             profile = None
 
-        pdf_bytes = _generate_po_summary_pdf(order, profile)
+        # ── Fetch or Create Zoho Sales Order & Fetch PDF ────────────────
+        from huezo_backend.utils.zoho import ZohoBooksClient
+        try:
+            zoho_client = ZohoBooksClient()
+            so_id = order.zoho_po_id
+            if not so_id:
+                so_id = zoho_client.create_sales_order(order)
+            pdf_bytes = zoho_client.get_sales_order_pdf(so_id)
+        except Exception as e:
+            import logging
+            logging.getLogger("orders.views").warning(
+                f"Zoho Sales Order PDF retrieval failed for {order.order_number}: {e}. Falling back to local PDF."
+            )
+            pdf_bytes = _generate_po_summary_pdf(order, profile)
+
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = (
             f'attachment; filename="PO-Summary-{order.order_number}.pdf"'

@@ -160,10 +160,16 @@ def _on_payment_failed(transaction):
 def _handle_order_payment_success(transaction):
     """Update Order status to advance_paid or payment_done depending on notes."""
     from orders.models import Order, OrderStageHistory
+    from huezo_backend.utils.zoho import ZohoBooksClient
+    import logging
+    
+    logger = logging.getLogger("payments.gateway")
 
     try:
         order = Order.objects.get(id=transaction.object_id)
-        if transaction.notes and "advance" in transaction.notes.lower():
+        is_advance = transaction.notes and "advance" in transaction.notes.lower()
+        
+        if is_advance:
             order.status = "advance_paid"
             notes = f"Advance payment received. Ref: {transaction.payment_reference}"
             order.payment_amount = None
@@ -179,6 +185,15 @@ def _handle_order_payment_success(transaction):
             stage = order.status,
             notes = notes,
         )
+        
+        # Sync payment to Zoho Books
+        try:
+            zoho_client = ZohoBooksClient()
+            inv_type = "advance" if is_advance else "final"
+            zoho_client.record_payment(order, transaction, invoice_type=inv_type)
+        except Exception as ze:
+            logger.error(f"Failed to record payment in Zoho Books for order {order.order_number}: {ze}", exc_info=True)
+
     except Order.DoesNotExist:
         pass
 

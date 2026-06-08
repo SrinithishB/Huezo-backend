@@ -199,6 +199,10 @@ class Customer(models.Model):
         related_name="created_customers",
         help_text="Which admin created this account.",
     )
+    zoho_contact_id = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Linked Zoho Books Contact ID",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

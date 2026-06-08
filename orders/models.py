@@ -270,6 +270,20 @@ class Order(models.Model):
         help_text="Shipment tracking code/number"
     )
 
+    # Zoho integration fields
+    zoho_advance_invoice_id = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Linked Zoho Books Advance Invoice ID"
+    )
+    zoho_final_invoice_id = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Linked Zoho Books Final Invoice ID"
+    )
+    zoho_po_id = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Linked Zoho Books Purchase/Sales Order ID"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
