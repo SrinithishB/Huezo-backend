@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from huezo_backend.admin_mixins import RowActionsMixin
-from .models import User, Customer
+from .models import User, Customer, Vendor
 
 
 class CustomUserChangeForm(UserChangeForm):
@@ -127,6 +127,86 @@ class CustomerAdmin(RowActionsMixin, ModelAdmin):
         return request.user.is_superuser or request.user.role == "admin"
 
     def has_delete_permission(self, request, obj=None):
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_delete_permission(request, obj)
+        return request.user.is_superuser
+
+
+@admin.register(Vendor)
+class VendorAdmin(RowActionsMixin, ModelAdmin):
+    list_display    = ["company_name", "contact_name", "phone", "user", "city", "created_at", "row_actions"]
+    search_fields   = ["company_name", "contact_name", "phone", "user__email"]
+    list_filter     = ["city", "state", "country"]
+    readonly_fields = ["id", "created_at", "updated_at"]
+    ordering        = ["-created_at"]
+
+    fieldsets = (
+        ("Vendor Info", {
+            "fields": ("id", "user", "company_name", "contact_name", "logo"),
+        }),
+        ("Contact", {
+            "fields": ("phone", "alternate_phone"),
+        }),
+        ("Address", {
+            "fields": ("address_line1", "address_line2", "city", "state", "pin_code", "country"),
+        }),
+        ("Audit", {
+            "fields": ("created_at", "updated_at"),
+        }),
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.role == "vendor":
+            if not hasattr(request.user, "vendor_profile"):
+                Vendor.objects.get_or_create(
+                    user=request.user,
+                    defaults={
+                        "company_name": request.user.email.split("@")[0].capitalize(),
+                        "contact_name": request.user.email.split("@")[0].capitalize(),
+                        "phone": "",
+                    }
+                )
+            return qs.filter(user=request.user)
+        return qs
+
+    def get_readonly_fields(self, request, obj=None):
+        rf = list(super().get_readonly_fields(request, obj))
+        if request.user.role == "vendor":
+            if "user" not in rf:
+                rf.append("user")
+        return rf
+
+    def has_view_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        if request.user.role == "vendor":
+            if obj is not None and obj.user != request.user:
+                return False
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_view_permission(request, obj)
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        if request.user.role == "vendor":
+            if obj is not None and obj.user != request.user:
+                return False
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_change_permission(request, obj)
+        return True
+
+    def has_add_permission(self, request):
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_add_permission(request)
+        return request.user.is_superuser or request.user.role == "admin"
+
+    def has_delete_permission(self, request, obj=None):
+        if request.user.role == "vendor":
+            return False
         if request.user.groups.exists() or request.user.user_permissions.exists():
             return super().has_delete_permission(request, obj)
         return request.user.is_superuser

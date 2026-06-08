@@ -35,6 +35,27 @@ class WLPrototypeImageInline(TabularInline):
         return "—"
     image_preview.short_description = "Preview"
 
+class VendorProductFilter(admin.SimpleListFilter):
+    title = "Vendor Product"
+    parameter_name = "is_vendor"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("yes", "Yes"),
+            ("no", "No"),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            if hasattr(queryset.model, "created_by_admin"):
+                return queryset.filter(created_by_admin__role="vendor")
+            return queryset.filter(created_by__role="vendor")
+        if self.value() == "no":
+            if hasattr(queryset.model, "created_by_admin"):
+                return queryset.exclude(created_by_admin__role="vendor")
+            return queryset.exclude(created_by__role="vendor")
+        return queryset
+
 
 @admin.register(WLPrototype)
 class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
@@ -42,9 +63,9 @@ class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
     list_display    = [
         "prototype_code", "garment_type", "for_gender",
         "collection_name", "moq", "is_prebooking",
-        "is_active", "thumbnail_preview", "created_at", "row_actions",
+        "is_active", "is_vendor_product", "thumbnail_preview", "created_at", "row_actions",
     ]
-    list_filter     = ["for_gender", "is_active", "is_prebooking", "garment_type"]
+    list_filter     = ["for_gender", "is_active", "is_prebooking", "garment_type", VendorProductFilter]
     search_fields   = ["prototype_code", "garment_type", "collection_name", "description"]
     readonly_fields = ["id", "thumbnail_preview", "created_by_admin", "created_at", "updated_at"]
     ordering        = ["-created_at"]
@@ -86,8 +107,18 @@ class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
             obj.created_by_admin = request.user
         super().save_model(request, obj, form, change)
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.role == "vendor":
+            return qs.filter(created_by_admin=request.user)
+        return qs
+
     def has_view_permission(self, request, obj=None):
         if request.user.is_superuser:
+            return True
+        if request.user.role == "vendor":
+            if obj is not None and obj.created_by_admin != request.user:
+                return False
             return True
         if request.user.groups.exists() or request.user.user_permissions.exists():
             return super().has_view_permission(request, obj)
@@ -96,8 +127,23 @@ class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
     def has_change_permission(self, request, obj=None):
         if request.user.is_superuser:
             return True
+        if request.user.role == "vendor":
+            if obj is not None and obj.created_by_admin != request.user:
+                return False
+            return True
         if request.user.groups.exists() or request.user.user_permissions.exists():
             return super().has_change_permission(request, obj)
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        if request.user.role == "vendor":
+            if obj is not None and obj.created_by_admin != request.user:
+                return False
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_delete_permission(request, obj)
         return True
 
     def has_add_permission(self, request):
@@ -107,6 +153,17 @@ class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
             return super().has_add_permission(request)
         return True
 
+    def is_vendor_product(self, obj):
+        return obj.created_by_admin is not None and obj.created_by_admin.role == "vendor"
+    is_vendor_product.boolean = True
+    is_vendor_product.short_description = "Vendor Product"
+
+    def get_list_filter(self, request):
+        base_filters = super().get_list_filter(request)
+        if request.user.role == "vendor":
+            return [f for f in base_filters if f != VendorProductFilter]
+        return base_filters
+
 
 @admin.register(WLPrototypeImage)
 class WLPrototypeImageAdmin(ModelAdmin):
@@ -114,6 +171,17 @@ class WLPrototypeImageAdmin(ModelAdmin):
     list_filter     = ["prototype"]
     ordering        = ["prototype", "sort_order"]
     readonly_fields = ["id", "image_preview", "uploaded_at"]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.role == "vendor":
+            return qs.filter(prototype__created_by_admin=request.user)
+        return qs
+
+    def has_module_permission(self, request):
+        if request.user.is_authenticated and request.user.role == "vendor":
+            return False
+        return super().has_module_permission(request)
 
     def image_preview(self, obj):
         if obj.image:
@@ -174,9 +242,9 @@ class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
     list_display    = [
         "fabric_name", "fabric_type", "effective_moq_display",
         "composition", "price_per_meter", "stock_available_meters",
-        "is_active", "thumbnail_preview", "created_at", "row_actions",
+        "is_active", "is_vendor_product", "thumbnail_preview", "created_at", "row_actions",
     ]
-    list_filter     = ["fabric_type", "is_active"]
+    list_filter     = ["fabric_type", "is_active", VendorProductFilter]
     search_fields   = ["fabric_name", "composition", "description"]
     readonly_fields = ["id", "thumbnail_preview", "created_by", "created_at", "updated_at"]
     ordering        = ["-created_at"]
@@ -225,8 +293,18 @@ class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.role == "vendor":
+            return qs.filter(created_by=request.user)
+        return qs
+
     def has_view_permission(self, request, obj=None):
         if request.user.is_superuser:
+            return True
+        if request.user.role == "vendor":
+            if obj is not None and obj.created_by != request.user:
+                return False
             return True
         if request.user.groups.exists() or request.user.user_permissions.exists():
             return super().has_view_permission(request, obj)
@@ -235,8 +313,23 @@ class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
     def has_change_permission(self, request, obj=None):
         if request.user.is_superuser:
             return True
+        if request.user.role == "vendor":
+            if obj is not None and obj.created_by != request.user:
+                return False
+            return True
         if request.user.groups.exists() or request.user.user_permissions.exists():
             return super().has_change_permission(request, obj)
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        if request.user.role == "vendor":
+            if obj is not None and obj.created_by != request.user:
+                return False
+            return True
+        if request.user.groups.exists() or request.user.user_permissions.exists():
+            return super().has_delete_permission(request, obj)
         return True
 
     def has_add_permission(self, request):
@@ -246,6 +339,17 @@ class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
             return super().has_add_permission(request)
         return True
 
+    def is_vendor_product(self, obj):
+        return obj.created_by is not None and obj.created_by.role == "vendor"
+    is_vendor_product.boolean = True
+    is_vendor_product.short_description = "Vendor Product"
+
+    def get_list_filter(self, request):
+        base_filters = super().get_list_filter(request)
+        if request.user.role == "vendor":
+            return [f for f in base_filters if f != VendorProductFilter]
+        return base_filters
+
 
 @admin.register(FabricsCatalogueImage)
 class FabricsCatalogueImageAdmin(ModelAdmin):
@@ -253,6 +357,17 @@ class FabricsCatalogueImageAdmin(ModelAdmin):
     list_filter     = ["is_thumbnail", "catalogue"]
     ordering        = ["catalogue", "-is_thumbnail", "sort_order"]
     readonly_fields = ["id", "image_preview", "uploaded_at"]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.role == "vendor":
+            return qs.filter(catalogue__created_by=request.user)
+        return qs
+
+    def has_module_permission(self, request):
+        if request.user.is_authenticated and request.user.role == "vendor":
+            return False
+        return super().has_module_permission(request)
 
     def image_preview(self, obj):
         if obj.image:

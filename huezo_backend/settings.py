@@ -37,7 +37,7 @@ ZOHO_BOOKS_API_BASE_URL = env("ZOHO_BOOKS_API_BASE_URL")
 
 DEBUG = env.bool("DEBUG", default=False)
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost", ".onrender.com"])
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 
 
 # Application definition
@@ -335,11 +335,13 @@ UNFOLD = {
                         "title": "Orders",
                         "icon": "shopping_bag",
                         "link": reverse_lazy("admin:orders_order_changelist"),
+                        "permission": lambda request: request.user.has_perm("orders.view_order"),
                     },
                     {
                         "title": "Enquiries",
                         "icon": "mail",
                         "link": reverse_lazy("admin:enquiries_enquiry_changelist"),
+                        "permission": lambda request: request.user.has_perm("enquiries.view_enquiry"),
                     },
                 ],
             },
@@ -350,16 +352,19 @@ UNFOLD = {
                         "title": "White Label Catalogue",
                         "icon": "apparel",
                         "link": reverse_lazy("admin:catalogue_wlprototype_changelist"),
+                        "permission": lambda request: request.user.has_perm("catalogue.view_wlprototype"),
                     },
                     {
                         "title": "Fabrics Catalogue",
                         "icon": "texture",
                         "link": reverse_lazy("admin:catalogue_fabricscatalogue_changelist"),
+                        "permission": lambda request: request.user.has_perm("catalogue.view_fabricscatalogue"),
                     },
                     {
                         "title": "Banners",
                         "icon": "ad",
                         "link": reverse_lazy("admin:banners_banner_changelist"),
+                        "permission": lambda request: request.user.has_perm("banners.view_banner"),
                     },
                 ],
             },
@@ -370,11 +375,19 @@ UNFOLD = {
                         "title": "Users",
                         "icon": "person",
                         "link": reverse_lazy("admin:accounts_user_changelist"),
+                        "permission": lambda request: request.user.has_perm("accounts.view_user"),
                     },
                     {
                         "title": "Customers Profile",
                         "icon": "contact_page",
                         "link": reverse_lazy("admin:accounts_customer_changelist"),
+                        "permission": lambda request: request.user.has_perm("accounts.view_customer"),
+                    },
+                    {
+                        "title": "Vendors Profile",
+                        "icon": "storefront",
+                        "link": reverse_lazy("admin:accounts_vendor_changelist"),
+                        "permission": lambda request: request.user.has_perm("accounts.view_vendor"),
                     },
                 ],
             },
@@ -385,11 +398,13 @@ UNFOLD = {
                         "title": "Notifications",
                         "icon": "notifications",
                         "link": reverse_lazy("admin:notifications_notification_changelist"),
+                        "permission": lambda request: request.user.has_perm("notifications.view_notification"),
                     },
                     {
                         "title": "Order History",
                         "icon": "history",
                         "link": reverse_lazy("admin:orders_orderstagehistory_changelist"),
+                        "permission": lambda request: request.user.has_perm("orders.view_orderstagehistory"),
                     },
                 ],
             },

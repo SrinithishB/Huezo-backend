@@ -7,6 +7,7 @@ from django.utils import timezone
 class UserRole(models.TextChoices):
     ADMIN    = "admin",    "Admin"     # Full access + Django admin panel (except user creation)
     STAFF    = "staff",    "Staff"     # Admin panel access — view only
+    VENDOR   = "vendor",   "Vendor"    # Vendor access (only added products)
     CUSTOMER = "customer", "Customer"  # End users — NO admin panel access
 
 
@@ -68,8 +69,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     # ── SAVE — sync is_staff with role ────────────────────────────────
     def save(self, *args, **kwargs):
         if not self.is_superuser:
-            # admin + staff → can log in to Django admin panel
-            self.is_staff = self.role in (UserRole.ADMIN, UserRole.STAFF)
+            # admin + staff + vendor → can log in to Django admin panel
+            self.is_staff = self.role in (UserRole.ADMIN, UserRole.STAFF, UserRole.VENDOR)
         super().save(*args, **kwargs)
 
     # ── DJANGO ADMIN PERMISSION OVERRIDES ─────────────────────────────
@@ -97,6 +98,14 @@ class User(AbstractBaseUser, PermissionsMixin):
             # Staff: view only
             action = perm.split(".")[-1] if "." in perm else ""
             return action.startswith("view_")
+        if self.role == UserRole.VENDOR:
+            # Vendor: can access only 'catalogue' app and their own 'accounts.vendor' permissions
+            app_label = perm.split(".")[0] if "." in perm else ""
+            if app_label == "catalogue":
+                return True
+            if app_label == "accounts":
+                return perm in ("accounts.view_vendor", "accounts.change_vendor")
+            return False
         return False
 
     def has_module_perms(self, app_label):
@@ -111,6 +120,8 @@ class User(AbstractBaseUser, PermissionsMixin):
 
         if self.role in (UserRole.ADMIN, UserRole.STAFF):
             return True
+        if self.role == UserRole.VENDOR:
+            return app_label in ("catalogue", "accounts")
         return False
 
     # ── ROLE HELPERS ──────────────────────────────────────────────────
@@ -126,6 +137,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_customer(self) -> bool:
         return self.role == UserRole.CUSTOMER
+
+    @property
+    def is_vendor(self) -> bool:
+        return self.role == UserRole.VENDOR
 
     # ── LOCKOUT HELPERS ───────────────────────────────────────────────
 
@@ -216,6 +231,49 @@ class Customer(models.Model):
 
     def __str__(self):
         return f"{self.brand_name} ({self.user.email})"
+
+    def full_address(self) -> str:
+        parts = [
+            self.address_line1, self.address_line2,
+            self.city, self.state, self.pin_code, self.country,
+        ]
+        return ", ".join(p for p in parts if p)
+
+
+class Vendor(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False,
+                          help_text="1-to-1 with users table.")
+    user = models.OneToOneField(
+        "User", on_delete=models.CASCADE,
+        related_name="vendor_profile",
+        help_text="Linked user account (role must be 'vendor').",
+    )
+    company_name    = models.CharField(max_length=200, help_text="Trading name of the vendor company.")
+    contact_name    = models.CharField(max_length=150, help_text="Primary point of contact.")
+    phone           = models.CharField(max_length=20,  help_text="Primary phone with country code.")
+    alternate_phone = models.CharField(max_length=20, null=True, blank=True,
+                                        help_text="Secondary contact number.")
+    address_line1   = models.TextField(null=True, blank=True, help_text="Street address.")
+    address_line2   = models.TextField(null=True, blank=True, help_text="Area / landmark.")
+    city            = models.CharField(max_length=100, null=True, blank=True)
+    state           = models.CharField(max_length=100, null=True, blank=True)
+    pin_code        = models.CharField(max_length=12,  null=True, blank=True)
+    country         = models.CharField(max_length=80,  default="India")
+    logo            = models.ImageField(
+        upload_to="vendors/logos/",
+        null=True, blank=True,
+        help_text="Vendor company logo.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table            = "vendors"
+        verbose_name        = "Vendor Profile"
+        verbose_name_plural = "Vendor Profiles"
+
+    def __str__(self):
+        return f"{self.company_name} ({self.user.email})"
 
     def full_address(self) -> str:
         parts = [
