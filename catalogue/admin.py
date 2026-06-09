@@ -19,21 +19,27 @@ class WLPrototypeForm(forms.ModelForm):
         }
 
 
+from django.forms import BaseInlineFormSet
+from django.core.exceptions import ValidationError
+
+class WLPrototypeImageFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        thumbnail_count = 0
+        for form in self.forms:
+            if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                if form.cleaned_data.get('is_thumbnail', False):
+                    thumbnail_count += 1
+        if thumbnail_count > 1:
+            raise ValidationError("You can only select one image as the thumbnail.")
+
 class WLPrototypeImageInline(TabularInline):
     model           = WLPrototypeImage
+    formset         = WLPrototypeImageFormSet
     extra           = 1
-    fields          = ["image", "image_preview", "sort_order", "uploaded_at"]
-    readonly_fields = ["image_preview", "uploaded_at"]
-    ordering        = ["sort_order"]
-
-    def image_preview(self, obj):
-        if obj.image:
-            return format_html(
-                '<img src="{}" style="height:80px; width:80px; object-fit:cover; border-radius:4px;" />',
-                obj.image.url
-            )
-        return "—"
-    image_preview.short_description = "Preview"
+    fields          = ["image", "is_thumbnail", "sort_order", "uploaded_at"]
+    readonly_fields = ["uploaded_at"]
+    ordering        = ["-is_thumbnail", "sort_order"]
 
 class VendorProductFilter(admin.SimpleListFilter):
     title = "Vendor Product"
@@ -67,9 +73,12 @@ class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
     ]
     list_filter     = ["for_gender", "is_active", "is_prebooking", "garment_type", VendorProductFilter]
     search_fields   = ["prototype_code", "garment_type", "collection_name", "description"]
-    readonly_fields = ["id", "thumbnail_preview", "created_by_admin", "created_at", "updated_at"]
+    readonly_fields = ["id", "created_by_admin", "created_at", "updated_at"]
     ordering        = ["-created_at"]
     inlines         = [WLPrototypeImageInline]
+
+    class Media:
+        js = ("js/single_thumbnail.js",)
 
     fieldsets = (
         ("Identity", {
@@ -77,10 +86,6 @@ class WLPrototypeAdmin(RowActionsMixin, ModelAdmin):
         }),
         ("Classification", {
             "fields": ("for_gender", "garment_type"),
-        }),
-        ("Thumbnail", {
-            "fields": ("thumbnail", "thumbnail_preview"),
-            "description": "Upload the primary display image for this prototype.",
         }),
         ("Order Details", {
             "fields": ("description", "moq", "fit_sizes", "customization_available"),
@@ -200,21 +205,24 @@ class WLPrototypeImageAdmin(ModelAdmin):
 from .models import FabricsCatalogue, FabricsCatalogueImage
 
 
+class FabricsCatalogueImageFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        thumbnail_count = 0
+        for form in self.forms:
+            if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                if form.cleaned_data.get('is_thumbnail', False):
+                    thumbnail_count += 1
+        if thumbnail_count > 1:
+            raise ValidationError("You can only select one image as the thumbnail.")
+
 class FabricImageInline(TabularInline):
     model           = FabricsCatalogueImage
+    formset         = FabricsCatalogueImageFormSet
     extra           = 1
-    fields          = ["image", "image_preview", "is_thumbnail", "sort_order", "uploaded_at"]
-    readonly_fields = ["image_preview", "uploaded_at"]
+    fields          = ["image", "is_thumbnail", "sort_order", "uploaded_at"]
+    readonly_fields = ["uploaded_at"]
     ordering        = ["-is_thumbnail", "sort_order"]
-
-    def image_preview(self, obj):
-        if obj.image:
-            return format_html(
-                '<img src="{}" style="height:80px;width:80px;object-fit:cover;border-radius:4px;" />',
-                obj.image.url,
-            )
-        return "—"
-    image_preview.short_description = "Preview"
 
 
 class FabricsCatalogueForm(forms.ModelForm):
@@ -240,19 +248,22 @@ class FabricsCatalogueForm(forms.ModelForm):
 class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
     form = FabricsCatalogueForm
     list_display    = [
-        "fabric_name", "fabric_type", "effective_moq_display",
+        "fabric_name", "sku", "fabric_type", "effective_moq_display",
         "composition", "price_per_meter", "stock_available_meters",
         "is_active", "is_vendor_product", "thumbnail_preview", "created_at", "row_actions",
     ]
     list_filter     = ["fabric_type", "is_active", VendorProductFilter]
-    search_fields   = ["fabric_name", "composition", "description"]
-    readonly_fields = ["id", "thumbnail_preview", "created_by", "created_at", "updated_at"]
+    search_fields   = ["fabric_name", "sku", "composition", "description"]
+    readonly_fields = ["id", "created_by", "created_at", "updated_at"]
     ordering        = ["-created_at"]
     inlines         = [FabricImageInline]
 
+    class Media:
+        js = ("js/single_thumbnail.js",)
+
     fieldsets = (
         ("Basic Info", {
-            "fields": ("id", "fabric_name", "fabric_type", "description"),
+            "fields": ("id", "sku", "fabric_name", "fabric_type", "description"),
         }),
         ("MOQ", {
             "fields": ("moq_regular", "moq_new"),
@@ -264,9 +275,6 @@ class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
         ("Stock", {
             "fields": ("stock_available_meters",),
             "description": "Only fill for Stock fabric type.",
-        }),
-        ("Thumbnail Preview", {
-            "fields": ("thumbnail_preview",),
         }),
         ("Status & Audit", {
             "fields": ("is_active", "created_by", "created_at", "updated_at"),

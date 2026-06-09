@@ -149,17 +149,55 @@ class WLPrototypeImage(models.Model):
         blank=True,
         help_text="Gallery image (upload from admin)",
     )
+    is_thumbnail = models.BooleanField(default=False, help_text="Main swatch display image")
     sort_order  = models.SmallIntegerField(default=0, help_text="Display order in gallery")
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "wl_prototype_images"
-        ordering = ["sort_order", "uploaded_at"]
+        ordering = ["-is_thumbnail", "sort_order", "uploaded_at"]
         verbose_name = "Prototype Image"
         verbose_name_plural = "Prototype Images"
 
     def __str__(self):
-        return f"Image #{self.sort_order} — {self.prototype.prototype_code}"
+        prefix = "Thumbnail" if self.is_thumbnail else "Image"
+        return f"{prefix} — {self.prototype.prototype_code}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.is_thumbnail:
+            # Set all other images for this prototype to not be thumbnails
+            WLPrototypeImage.objects.filter(
+                prototype=self.prototype, is_thumbnail=True
+            ).exclude(pk=self.pk).update(is_thumbnail=False)
+            
+            # Update parent thumbnail field
+            prototype = self.prototype
+            if prototype.thumbnail != self.image:
+                prototype.thumbnail = self.image
+                prototype.save(update_fields=['thumbnail'])
+        else:
+            # If this image was the parent thumbnail, clear it or fallback to another thumbnail
+            prototype = self.prototype
+            if prototype.thumbnail == self.image:
+                other_thumb = WLPrototypeImage.objects.filter(prototype=prototype, is_thumbnail=True).first()
+                if other_thumb:
+                    prototype.thumbnail = other_thumb.image
+                else:
+                    prototype.thumbnail = None
+                prototype.save(update_fields=['thumbnail'])
+
+    def delete(self, *args, **kwargs):
+        prototype = self.prototype
+        was_thumbnail = self.is_thumbnail or (prototype.thumbnail == self.image)
+        super().delete(*args, **kwargs)
+        if was_thumbnail:
+            other_thumb = WLPrototypeImage.objects.filter(prototype=prototype, is_thumbnail=True).first()
+            if other_thumb:
+                prototype.thumbnail = other_thumb.image
+            else:
+                prototype.thumbnail = None
+            prototype.save(update_fields=['thumbnail'])
 
 
 # FABRICS CATALOGUE
@@ -172,6 +210,13 @@ class FabricType(models.TextChoices):
 
 class FabricsCatalogue(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sku = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Stock Keeping Unit / Unique identifier for the fabric",
+    )
 
     # Core fields
     fabric_type = models.CharField(

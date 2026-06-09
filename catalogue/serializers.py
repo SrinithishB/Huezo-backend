@@ -7,7 +7,7 @@ class WLPrototypeImageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = WLPrototypeImage
-        fields = ["id", "image_url", "sort_order", "uploaded_at"]
+        fields = ["id", "image_url", "is_thumbnail", "sort_order", "uploaded_at"]
 
     def get_image_url(self, obj):
         request = self.context.get("request")
@@ -94,7 +94,7 @@ class FabricListSerializer(serializers.ModelSerializer):
     class Meta:
         model  = FabricsCatalogue
         fields = [
-            "id", "fabric_type", "fabric_name", "description",
+            "id", "sku", "fabric_type", "fabric_name", "description",
             "composition", "width_cm", "colour_options", "price_per_meter",
             "stock_available_meters", "effective_moq",
             "thumbnail_url", "is_active",
@@ -116,7 +116,7 @@ class FabricDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model  = FabricsCatalogue
         fields = [
-            "id", "fabric_type", "fabric_name", "description",
+            "id", "sku", "fabric_type", "fabric_name", "description",
             "moq_regular", "moq_new", "effective_moq",
             "composition", "width_cm", "colour_options",
             "price_per_meter", "stock_available_meters",

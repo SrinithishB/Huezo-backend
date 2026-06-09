@@ -348,6 +348,7 @@ class OrderListSerializer(serializers.ModelSerializer):
         if obj.fabric_catalogue:
             return {
                 "id":          str(obj.fabric_catalogue.id),
+                "sku":         obj.fabric_catalogue.sku,
                 "fabric_name": obj.fabric_catalogue.fabric_name,
             }
         return None
@@ -456,6 +457,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 
             return {
                 "id":            str(f.id),
+                "sku":           f.sku,
                 "fabric_name":   f.fabric_name,
                 "fabric_type":   f.fabric_type,
                 "effective_moq": f.effective_moq,
@@ -483,6 +485,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
                 fabrics.append({
                     "choice":      i,
                     "id":          str(fabric.id),
+                    "sku":         fabric.sku,
                     "fabric_name": fabric.fabric_name,
                     "fabric_type": fabric.fabric_type,
                     "composition": fabric.composition,
