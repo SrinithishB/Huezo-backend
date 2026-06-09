@@ -39,7 +39,7 @@ class WLPrototypeListSerializer(serializers.ModelSerializer):
 class WLPrototypeDetailSerializer(serializers.ModelSerializer):
     fit_sizes        = serializers.ListField(child=serializers.CharField(), read_only=True)
     thumbnail_url    = serializers.SerializerMethodField()
-    images           = WLPrototypeImageSerializer(many=True, read_only=True)
+    images           = serializers.SerializerMethodField()
     created_by_admin = serializers.SerializerMethodField()
 
     class Meta:
@@ -64,6 +64,11 @@ class WLPrototypeDetailSerializer(serializers.ModelSerializer):
         if obj.created_by_admin:
             return {"id": str(obj.created_by_admin.id), "email": obj.created_by_admin.email}
         return None
+
+    def get_images(self, obj):
+        images = obj.images.filter(is_thumbnail=False)
+        request = self.context.get("request")
+        return WLPrototypeImageSerializer(images, many=True, context={"request": request}).data
 
 
 # ======================================================================
@@ -110,7 +115,7 @@ class FabricListSerializer(serializers.ModelSerializer):
 
 class FabricDetailSerializer(serializers.ModelSerializer):
     effective_moq = serializers.IntegerField(read_only=True)
-    images        = FabricImageSerializer(many=True, read_only=True)
+    images        = serializers.SerializerMethodField()
     created_by    = serializers.SerializerMethodField()
 
     class Meta:
@@ -128,3 +133,8 @@ class FabricDetailSerializer(serializers.ModelSerializer):
         if obj.created_by:
             return {"id": str(obj.created_by.id), "email": obj.created_by.email}
         return None
+
+    def get_images(self, obj):
+        images = obj.images.filter(is_thumbnail=False)
+        request = self.context.get("request")
+        return FabricImageSerializer(images, many=True, context={"request": request}).data

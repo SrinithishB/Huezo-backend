@@ -274,3 +274,36 @@ class FabricsCatalogueSKUTests(APITestCase):
         # Should be invalid because both are checked as thumbnail
         self.assertFalse(formset.is_valid())
         self.assertIn("You can only select one image as the thumbnail.", formset.non_form_errors())
+
+    def test_thumbnail_excluded_from_images_gallery_api(self):
+        from catalogue.models import FabricsCatalogueImage
+        # Create fabric
+        fabric = FabricsCatalogue.objects.create(
+            fabric_name="Premium Cotton Blend",
+            fabric_type="regular",
+            sku="FAB-COTTON-05"
+        )
+        # Create thumbnail image
+        img_thumb = FabricsCatalogueImage.objects.create(
+            catalogue=fabric,
+            image=SimpleUploadedFile("thumb.jpg", b"thumb_data", content_type="image/jpeg"),
+            is_thumbnail=True
+        )
+        # Create gallery image
+        img_gallery = FabricsCatalogueImage.objects.create(
+            catalogue=fabric,
+            image=SimpleUploadedFile("gallery.jpg", b"gallery_data", content_type="image/jpeg"),
+            is_thumbnail=False
+        )
+
+        # Call detail endpoint
+        url = reverse("fabrics-detail", kwargs={"id": fabric.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Retrieve images list from response
+        images_data = response.data["images"]
+        # Thumbnail image should be EXCLUDED, only gallery image should be included
+        self.assertEqual(len(images_data), 1)
+        self.assertFalse(images_data[0]["is_thumbnail"])
+        self.assertTrue("gallery" in images_data[0]["image_url"])
