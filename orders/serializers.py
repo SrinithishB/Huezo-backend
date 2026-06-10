@@ -983,3 +983,48 @@ class OrderAssignSerializer(serializers.Serializer):
         if user.role not in ("admin", "staff"):
             raise serializers.ValidationError("Only admin or staff users can be assigned to orders.")
         return user
+
+
+class StaffOrderUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = [
+            "style_name",
+            "for_category",
+            "garment_type",
+            "total_quantity",
+            "unit_price",
+            "total_amount",
+            "advance_amount",
+            "hsn_code",
+            "gst_percentage",
+        ]
+
+    def validate(self, attrs):
+        total_amount = attrs.get("total_amount")
+        if total_amount is None:
+            total_amount = self.instance.total_amount
+            
+        advance_amount = attrs.get("advance_amount")
+        if advance_amount is None:
+            advance_amount = self.instance.advance_amount
+            
+        errors = {}
+        if total_amount is not None and advance_amount is not None and advance_amount > total_amount:
+            errors["advance_amount"] = "Advance amount cannot exceed the total amount."
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        if "total_quantity" in validated_data or "unit_price" in validated_data:
+            qty = validated_data.get("total_quantity", instance.total_quantity)
+            price = validated_data.get("unit_price", instance.unit_price)
+            if qty is not None and price is not None:
+                instance.total_amount = qty * price
+
+        instance.save()
+        return instance

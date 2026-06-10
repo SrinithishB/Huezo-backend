@@ -181,20 +181,30 @@ class OrderDetailView(APIView):
         if not order:
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
         
-        if not order.is_size_breakdown_editable:
-            return Response(
-                {"error": "Size breakdown can only be edited before the order is confirmed."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if "size_breakdown" in request.data:
+            if not order.is_size_breakdown_editable:
+                return Response(
+                    {"error": "Size breakdown can only be edited before the order is confirmed."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            from .serializers import OrderSizeBreakdownUpdateSerializer
+            serializer = OrderSizeBreakdownUpdateSerializer(order, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                detail = OrderDetailSerializer(order, context={"request": request})
+                return Response(detail.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        # Customers and staff can edit size breakdown
-        from .serializers import OrderSizeBreakdownUpdateSerializer
-        serializer = OrderSizeBreakdownUpdateSerializer(order, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            detail = OrderDetailSerializer(order, context={"request": request})
-            return Response(detail.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if request.user.role in ("admin", "staff"):
+            from .serializers import StaffOrderUpdateSerializer
+            serializer = StaffOrderUpdateSerializer(order, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                detail = OrderDetailSerializer(order, context={"request": request})
+                return Response(detail.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        return Response({"error": "Only staff members can update general order details."}, status=status.HTTP_403_FORBIDDEN)
 
 
 # ── UPDATE ORDER STATUS (Admin only) ──────────────────────────────────

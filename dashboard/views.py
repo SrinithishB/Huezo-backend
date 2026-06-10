@@ -340,6 +340,9 @@ class DashboardSummaryView(APIView):
     def get(self, request):
         from enquiries.models import Enquiry
         from orders.models import Order
+        from django.db.models import Sum, Value
+        from django.db.models.functions import Coalesce
+        from collections import defaultdict
 
         # Single query per model using conditional aggregation
         enq = Enquiry.objects.aggregate(
@@ -372,6 +375,114 @@ class DashboardSummaryView(APIView):
             - ord["delivered"]
         )
 
+        # Stage-wise stats aggregation
+        pipeline_orders = Order.objects.filter(assigned_to=request.user)
+
+        state_raw = pipeline_orders.values(
+            'status',
+            'order_type'
+        ).annotate(
+            count=Count('id'),
+            total_qty=Coalesce(Sum('total_quantity'), Value(0))
+        )
+
+        STATUS_PIPELINE = [
+            "order_placed",
+            "sample_request",
+            "sample_approval",
+            "sample_rework",
+            "swatch_sent",
+            "swatch_received",
+            "swatch_approved",
+            "swatch_rework",
+            "order_confirmed",
+            "advance_pending",
+            "advance_paid",
+            "bulk_production",
+            "quality_inspection",
+            "packing",
+            "payment_pending",
+            "payment_done",
+            "dispatch",
+            "shipment_tracking",
+            "delivered",
+            "rework_replacement_pending",
+            "order_completed",
+            "cancelled",
+        ]
+        STATUS_ORDER_MAP = {status: index for index, status in enumerate(STATUS_PIPELINE)}
+
+        STATUS_DISPLAY_MAP = {
+            "order_placed": "Order Placed",
+            "sample_request": "Sample Request",
+            "sample_approval": "Sample Approved",
+            "sample_rework": "Sample Rework",
+            "swatch_sent": "Swatch Sent",
+            "swatch_received": "Swatch Received",
+            "swatch_approved": "Swatch Approved",
+            "swatch_rework": "Swatch Rework",
+            "order_confirmed": "Order Confirmed",
+            "advance_pending": "Advance Pending",
+            "advance_paid": "Advance Paid",
+            "bulk_production": "Bulk Production",
+            "quality_inspection": "Quality Inspection",
+            "packing": "Packing",
+            "payment_pending": "Payment Pending",
+            "payment_done": "Payment Done",
+            "dispatch": "Dispatch",
+            "shipment_tracking": "Shipment",
+            "delivered": "Delivered",
+            "rework_replacement_pending": "Rework / Replacement Pending",
+            "order_completed": "Order Completed",
+            "cancelled": "Cancelled",
+        }
+
+        state_totals = defaultdict(lambda: {
+            "wl_orders": 0,
+            "wl_pieces": 0,
+            "pl_orders": 0,
+            "pl_pieces": 0,
+            "combined_orders": 0,
+            "combined_pieces": 0,
+            "fabrics_orders": 0,
+            "fabrics_meters": 0,
+        })
+
+        for entry in state_raw:
+            status_key = entry['status']
+            if not status_key or not status_key.strip():
+                status_key = 'order_placed'
+                
+            stats = state_totals[status_key]
+            ot = entry['order_type']
+            count = entry['count']
+            qty = entry['total_qty']
+            
+            if ot == 'white_label':
+                stats["wl_orders"] += count
+                stats["wl_pieces"] += qty
+                stats["combined_orders"] += count
+                stats["combined_pieces"] += qty
+            elif ot == 'private_label':
+                stats["pl_orders"] += count
+                stats["pl_pieces"] += qty
+                stats["combined_orders"] += count
+                stats["combined_pieces"] += qty
+            elif ot == 'fabrics':
+                stats["fabrics_orders"] += count
+                stats["fabrics_meters"] += qty
+
+        state_wise_list = []
+        sorted_status_keys = sorted(state_totals.keys(), key=lambda k: STATUS_ORDER_MAP.get(k, 999))
+        for status_key in sorted_status_keys:
+            stats = state_totals[status_key]
+            display_name = STATUS_DISPLAY_MAP.get(status_key, status_key.replace('_', ' ').title())
+            state_wise_list.append({
+                "state": status_key,
+                "display_name": display_name,
+                **stats
+            })
+
         return Response({
             "enquiries": {
                 "total": enq["total"],
@@ -392,12 +503,13 @@ class DashboardSummaryView(APIView):
                 "payment_done":    ord["payment_done"],
                 "dispatched":      ord["dispatched"],
                 "delivered":       ord["delivered"],
-                 "by_type": {
+                "by_type": {
                     "private_label": ord["private_label"],
                     "white_label":   ord["white_label"],
                     "fabrics":       ord["fabrics"],
                 },
             },
+            "state_wise_stats": state_wise_list,
         })
 
 
