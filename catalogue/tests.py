@@ -307,3 +307,68 @@ class FabricsCatalogueSKUTests(APITestCase):
         self.assertEqual(len(images_data), 1)
         self.assertFalse(images_data[0]["is_thumbnail"])
         self.assertTrue("gallery" in images_data[0]["image_url"])
+
+    def test_automatic_thumbnail_selection(self):
+        from catalogue.models import FabricsCatalogueImage
+        
+        # Create fabric
+        fabric = FabricsCatalogue.objects.create(
+            fabric_name="Test Automatic Thumbnail",
+            fabric_type="regular",
+            sku="FAB-AUTO-THUMB"
+        )
+        
+        # 1. Create first image without thumbnail flag
+        img1 = FabricsCatalogueImage.objects.create(
+            catalogue=fabric,
+            image=SimpleUploadedFile("img1.jpg", b"data1", content_type="image/jpeg"),
+            is_thumbnail=False,
+            sort_order=1
+        )
+        
+        # Since no thumbnail exists, img1 should automatically become the thumbnail
+        img1.refresh_from_db()
+        self.assertTrue(img1.is_thumbnail)
+        
+        # 2. Create second image without thumbnail flag
+        img2 = FabricsCatalogueImage.objects.create(
+            catalogue=fabric,
+            image=SimpleUploadedFile("img2.jpg", b"data2", content_type="image/jpeg"),
+            is_thumbnail=False,
+            sort_order=2
+        )
+        
+        # Since a thumbnail (img1) already exists, img2 should NOT become a thumbnail
+        img2.refresh_from_db()
+        self.assertFalse(img2.is_thumbnail)
+        
+        # 3. Create a third image with sort_order=0 (highest priority) without thumbnail flag
+        img3 = FabricsCatalogueImage.objects.create(
+            catalogue=fabric,
+            image=SimpleUploadedFile("img3.jpg", b"data3", content_type="image/jpeg"),
+            is_thumbnail=False,
+            sort_order=0
+        )
+        img3.refresh_from_db()
+        self.assertFalse(img3.is_thumbnail)
+        
+        # 4. Turn off thumbnail flag on img1
+        img1.is_thumbnail = False
+        img1.save()
+        
+        # Now since no thumbnail exists, the first image according to ordering (img3 with sort_order=0) should automatically become the thumbnail
+        img3.refresh_from_db()
+        self.assertTrue(img3.is_thumbnail)
+        img1.refresh_from_db()
+        self.assertFalse(img1.is_thumbnail)
+        img2.refresh_from_db()
+        self.assertFalse(img2.is_thumbnail)
+        
+        # 5. Delete the thumbnail image (img3)
+        img3.delete()
+        
+        # Now the next first image (img1 with sort_order=1) should automatically become the thumbnail
+        img1.refresh_from_db()
+        self.assertTrue(img1.is_thumbnail)
+        img2.refresh_from_db()
+        self.assertFalse(img2.is_thumbnail)

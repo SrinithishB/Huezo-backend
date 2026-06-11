@@ -309,3 +309,19 @@ class FabricsCatalogueImage(models.Model):
                 catalogue=self.catalogue, is_thumbnail=True
             ).exclude(pk=self.pk).update(is_thumbnail=False)
         super().save(*args, **kwargs)
+        
+        # If no image is marked as thumbnail, mark the first one as thumbnail
+        if not FabricsCatalogueImage.objects.filter(catalogue=self.catalogue, is_thumbnail=True).exists():
+            first_image = FabricsCatalogueImage.objects.filter(catalogue=self.catalogue).order_by('sort_order', 'uploaded_at').first()
+            if first_image:
+                FabricsCatalogueImage.objects.filter(pk=first_image.pk).update(is_thumbnail=True)
+                if first_image.pk == self.pk:
+                    self.is_thumbnail = True
+
+    def delete(self, *args, **kwargs):
+        was_thumbnail = self.is_thumbnail
+        super().delete(*args, **kwargs)
+        if was_thumbnail:
+            first_image = FabricsCatalogueImage.objects.filter(catalogue=self.catalogue).order_by('sort_order', 'uploaded_at').first()
+            if first_image:
+                FabricsCatalogueImage.objects.filter(pk=first_image.pk).update(is_thumbnail=True)
