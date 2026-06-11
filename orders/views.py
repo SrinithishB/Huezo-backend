@@ -140,7 +140,7 @@ class OrderListView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         qs   = Order.objects.select_related(
-            "customer_user", "white_label_catalogue", "fabric_catalogue", "assigned_to",
+            "customer_user", "customer_user__customer_profile", "white_label_catalogue", "fabric_catalogue", "assigned_to",
         )
         if user.role == "customer":
             return qs.filter(customer_user=user)
@@ -159,7 +159,7 @@ class OrderDetailView(APIView):
     def get_object(self, id, user):
         try:
             qs = Order.objects.select_related(
-                "customer_user", "created_by_user", "enquiry",
+                "customer_user", "customer_user__customer_profile", "created_by_user", "enquiry",
                 "white_label_catalogue", "fabric_catalogue",
             ).prefetch_related("images", "stage_history__changed_by")
 

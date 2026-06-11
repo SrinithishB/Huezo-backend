@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
+from unfold.widgets import UnfoldAdminIntegerFieldWidget
 from django.utils.html import format_html
 from huezo_backend.admin_mixins import RowActionsMixin
 from .models import WLPrototype, WLPrototypeImage
@@ -10,7 +11,7 @@ class WLPrototypeForm(forms.ModelForm):
         model = WLPrototype
         fields = '__all__'
         widgets = {
-            'moq': forms.NumberInput(attrs={
+            'moq': UnfoldAdminIntegerFieldWidget(attrs={
                 'min': '0',
                 'max': '9999',
                 'oninput': "if(this.value.length > 4) this.value = this.value.slice(0,4);",
@@ -230,13 +231,19 @@ class FabricsCatalogueForm(forms.ModelForm):
         model = FabricsCatalogue
         fields = '__all__'
         widgets = {
-            'moq_regular': forms.NumberInput(attrs={
+            'moq_regular': UnfoldAdminIntegerFieldWidget(attrs={
                 'min': '0',
                 'max': '9999',
                 'oninput': "if(this.value.length > 4) this.value = this.value.slice(0,4);",
                 'style': 'width: 100px;',
             }),
-            'moq_new': forms.NumberInput(attrs={
+            'moq_new': UnfoldAdminIntegerFieldWidget(attrs={
+                'min': '0',
+                'max': '9999',
+                'oninput': "if(this.value.length > 4) this.value = this.value.slice(0,4);",
+                'style': 'width: 100px;',
+            }),
+            'moq_stock': UnfoldAdminIntegerFieldWidget(attrs={
                 'min': '0',
                 'max': '9999',
                 'oninput': "if(this.value.length > 4) this.value = this.value.slice(0,4);",
@@ -266,11 +273,11 @@ class FabricsCatalogueAdmin(RowActionsMixin, ModelAdmin):
             "fields": ("id", "sku", "fabric_name", "fabric_type", "description"),
         }),
         ("MOQ", {
-            "fields": ("moq_regular", "moq_new"),
-            "description": "Regular = 400m | New = 1000m | Stock = no MOQ",
+            "fields": ("moq_regular", "moq_new", "moq_stock"),
+            "description": "Regular = 400m | New = 1000m | Stock = custom MOQ (0 for no MOQ)",
         }),
         ("Fabric Details", {
-            "fields": ("composition", "width_cm", "colour_options", "price_per_meter"),
+            "fields": ("composition", "width", "colour_options", "price_per_meter"),
         }),
         ("Stock", {
             "fields": ("stock_available_meters",),

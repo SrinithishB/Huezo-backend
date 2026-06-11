@@ -228,13 +228,14 @@ class FabricsCatalogue(models.Model):
     description = models.TextField(null=True, blank=True, help_text="Additional fabric details")
 
     # MOQ — driven by fabric_type
-    # Regular = 400m, New = 1000m, Stock = no MOQ
+    # Regular = 400m, New = 1000m, Stock = custom MOQ
     moq_regular = models.IntegerField(default=400, validators=[MaxValueValidator(9999)], help_text="MOQ in meters for Regular fabrics")
     moq_new     = models.IntegerField(default=1000, validators=[MaxValueValidator(9999)], help_text="MOQ in meters for New fabrics")
+    moq_stock   = models.IntegerField(default=0, validators=[MaxValueValidator(9999)], help_text="MOQ in meters for Stock fabrics")
 
     # Fabric details
     composition            = models.CharField(max_length=200, null=True, blank=True, help_text="e.g. 100% Cotton")
-    width_cm               = models.DecimalField(max_digits=5,  decimal_places=1, null=True, blank=True)
+    width                  = models.CharField(max_length=100, null=True, blank=True, help_text="e.g. 148 cm, 58 inches")
     colour_options         = models.TextField(null=True, blank=True, help_text="Available colour variants")
     price_per_meter        = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     stock_available_meters = models.DecimalField(max_digits=10, decimal_places=1, null=True, blank=True,
@@ -272,7 +273,9 @@ class FabricsCatalogue(models.Model):
             return self.moq_regular
         elif self.fabric_type == FabricType.NEW:
             return self.moq_new
-        return None  # Stock has no MOQ
+        elif self.fabric_type == FabricType.STOCK:
+            return self.moq_stock if (self.moq_stock is not None and self.moq_stock > 0) else None
+        return None
 
 
 class FabricsCatalogueImage(models.Model):

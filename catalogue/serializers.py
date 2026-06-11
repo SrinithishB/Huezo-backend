@@ -100,7 +100,7 @@ class FabricListSerializer(serializers.ModelSerializer):
         model  = FabricsCatalogue
         fields = [
             "id", "sku", "fabric_type", "fabric_name", "description",
-            "composition", "width_cm", "colour_options", "price_per_meter",
+            "composition", "width", "colour_options", "price_per_meter",
             "stock_available_meters", "effective_moq",
             "thumbnail_url", "is_active",
         ]
@@ -122,8 +122,8 @@ class FabricDetailSerializer(serializers.ModelSerializer):
         model  = FabricsCatalogue
         fields = [
             "id", "sku", "fabric_type", "fabric_name", "description",
-            "moq_regular", "moq_new", "effective_moq",
-            "composition", "width_cm", "colour_options",
+            "moq_regular", "moq_new", "moq_stock", "effective_moq",
+            "composition", "width", "colour_options",
             "price_per_meter", "stock_available_meters",
             "is_active", "images",
             "created_by", "created_at", "updated_at",

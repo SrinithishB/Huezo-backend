@@ -116,12 +116,11 @@ class FabricFilter(django_filters.FilterSet):
     composition = django_filters.CharFilter(lookup_expr="icontains")
     price_min   = django_filters.NumberFilter(field_name="price_per_meter", lookup_expr="gte")
     price_max   = django_filters.NumberFilter(field_name="price_per_meter", lookup_expr="lte")
-    width_min   = django_filters.NumberFilter(field_name="width_cm", lookup_expr="gte")
-    width_max   = django_filters.NumberFilter(field_name="width_cm", lookup_expr="lte")
+    width       = django_filters.CharFilter(lookup_expr="icontains")
 
     class Meta:
         model  = FabricsCatalogue
-        fields = ["fabric_type", "fabric_name", "composition"]
+        fields = ["fabric_type", "fabric_name", "composition", "width"]
 
 
 class FabricsListView(generics.ListAPIView):
@@ -135,8 +134,7 @@ class FabricsListView(generics.ListAPIView):
       ?composition=   partial match
       ?price_min=     price per meter >=
       ?price_max=     price per meter <=
-      ?width_min=     width in cm >=
-      ?width_max=     width in cm <=
+      ?width=         width partial match (e.g. "58 inches")
       ?search=        searches fabric_name, description, composition
       ?ordering=      fabric_name | price_per_meter | created_at
     """

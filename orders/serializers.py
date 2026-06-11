@@ -325,7 +325,19 @@ class OrderListSerializer(serializers.ModelSerializer):
         ]
 
     def get_customer(self, obj):
-        return {"id": str(obj.customer_user.id), "email": obj.customer_user.email}
+        try:
+            profile = obj.customer_user.customer_profile
+            brand_name = profile.brand_name
+            contact_name = profile.contact_name
+        except Exception:
+            brand_name = ""
+            contact_name = ""
+        return {
+            "id": str(obj.customer_user.id),
+            "email": obj.customer_user.email,
+            "brand_name": brand_name,
+            "contact_name": contact_name,
+        }
 
     def get_assigned_to(self, obj):
         if obj.assigned_to:
@@ -407,7 +419,19 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_customer(self, obj):
-        return {"id": str(obj.customer_user.id), "email": obj.customer_user.email}
+        try:
+            profile = obj.customer_user.customer_profile
+            brand_name = profile.brand_name
+            contact_name = profile.contact_name
+        except Exception:
+            brand_name = ""
+            contact_name = ""
+        return {
+            "id": str(obj.customer_user.id),
+            "email": obj.customer_user.email,
+            "brand_name": brand_name,
+            "contact_name": contact_name,
+        }
 
     def get_created_by(self, obj):
         return {"id": str(obj.created_by_user.id), "email": obj.created_by_user.email}
@@ -489,7 +513,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
                     "fabric_name": fabric.fabric_name,
                     "fabric_type": fabric.fabric_type,
                     "composition": fabric.composition,
-                    "width_cm":    str(fabric.width_cm) if fabric.width_cm else None,
+                    "width":       fabric.width if fabric.width else None,
                     "thumbnail_url": thumbnail_url,
                     "image_urls":    image_urls,
                 })
