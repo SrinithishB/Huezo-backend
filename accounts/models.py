@@ -2,6 +2,8 @@ import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
+from huezo_backend.utils.uploads import SecureUploadTo, validate_file_size
+
 
 
 class UserRole(models.TextChoices):
@@ -150,16 +152,23 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def record_failed_login(self, lock_duration_minutes: int = 30) -> None:
         self.failed_login_attempts += 1
+        import logging
+        _logger = logging.getLogger("accounts.models")
         if self.failed_login_attempts >= self.MAX_FAILED_ATTEMPTS:
             self.locked_until = timezone.now() + timezone.timedelta(
                 minutes=lock_duration_minutes
             )
+            _logger.warning(f"Account locked: {self.email} due to {self.failed_login_attempts} failed attempts.")
+        else:
+            _logger.warning(f"Failed login attempt ({self.failed_login_attempts}/{self.MAX_FAILED_ATTEMPTS}) for: {self.email}")
         self.save(update_fields=["failed_login_attempts", "locked_until", "updated_at"])
 
     def record_successful_login(self) -> None:
         self.failed_login_attempts = 0
         self.locked_until          = None
         self.last_login_at         = timezone.now()
+        import logging
+        logging.getLogger("accounts.models").info(f"Successful login for account: {self.email}")
         self.save(update_fields=[
             "failed_login_attempts", "locked_until",
             "last_login_at", "updated_at",
@@ -205,7 +214,8 @@ class Customer(models.Model):
     pin_code        = models.CharField(max_length=12,  null=True, blank=True)
     country         = models.CharField(max_length=80,  default="India")
     profile_picture = models.ImageField(
-        upload_to="customers/profile_pictures/",
+        upload_to=SecureUploadTo("customers/profile_pictures/"),
+        validators=[validate_file_size],
         null=True, blank=True,
         help_text="Customer profile picture.",
     )
@@ -260,7 +270,8 @@ class Vendor(models.Model):
     pin_code        = models.CharField(max_length=12,  null=True, blank=True)
     country         = models.CharField(max_length=80,  default="India")
     logo            = models.ImageField(
-        upload_to="vendors/logos/",
+        upload_to=SecureUploadTo("vendors/logos/"),
+        validators=[validate_file_size],
         null=True, blank=True,
         help_text="Vendor company logo.",
     )

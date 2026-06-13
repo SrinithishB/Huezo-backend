@@ -371,14 +371,16 @@ class OrderListSerializer(serializers.ModelSerializer):
             img = obj.white_label_catalogue.thumbnail
             return request.build_absolute_uri(img.url) if request else img.url
         if obj.fabric_catalogue:
-            thumb = obj.fabric_catalogue.images.filter(is_thumbnail=True).first()
+            thumb = next((img for img in obj.fabric_catalogue.images.all() if img.is_thumbnail), None)
             if thumb and thumb.image:
                 return request.build_absolute_uri(thumb.image.url) if request else thumb.image.url
         
         # Fallback to the first attached order image (e.g. for Private Label orders)
-        first_img = obj.images.first()
-        if first_img and first_img.image:
-            return request.build_absolute_uri(first_img.image.url) if request else first_img.image.url
+        order_images = list(obj.images.all())
+        if order_images:
+            first_img = order_images[0]
+            if first_img and first_img.image:
+                return request.build_absolute_uri(first_img.image.url) if request else first_img.image.url
             
         return None
 
@@ -448,8 +450,8 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             thumbnail_url = request.build_absolute_uri(wl.thumbnail.url) if (wl.thumbnail and request) else (wl.thumbnail.url if wl.thumbnail else None)
             
             image_urls = []
-            for img in wl.images.filter(is_thumbnail=False):
-                if img.image:
+            for img in wl.images.all():
+                if not img.is_thumbnail and img.image:
                     url = request.build_absolute_uri(img.image.url) if request else img.image.url
                     image_urls.append(url)
 
@@ -468,14 +470,15 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         if obj.fabric_catalogue:
             request = self.context.get("request")
             f = obj.fabric_catalogue
-            thumbnail = f.images.filter(is_thumbnail=True).first()
+            fabric_images = list(f.images.all())
+            thumbnail = next((img for img in fabric_images if img.is_thumbnail), None)
             thumbnail_url = None
             if thumbnail and thumbnail.image:
                 thumbnail_url = request.build_absolute_uri(thumbnail.image.url) if request else thumbnail.image.url
             
             image_urls = []
-            for img in f.images.filter(is_thumbnail=False):
-                if img.image:
+            for img in fabric_images:
+                if not img.is_thumbnail and img.image:
                     url = request.build_absolute_uri(img.image.url) if request else img.image.url
                     image_urls.append(url)
 
@@ -495,14 +498,15 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         for i, fabric in enumerate([obj.pl_fabric_1, obj.pl_fabric_2, obj.pl_fabric_3], start=1):
             if fabric:
-                thumbnail = fabric.images.filter(is_thumbnail=True).first()
+                fabric_images = list(fabric.images.all())
+                thumbnail = next((img for img in fabric_images if img.is_thumbnail), None)
                 thumbnail_url = None
                 if thumbnail and thumbnail.image:
                     thumbnail_url = request.build_absolute_uri(thumbnail.image.url) if request else thumbnail.image.url
                 
                 image_urls = []
-                for img in fabric.images.filter(is_thumbnail=False):
-                    if img.image:
+                for img in fabric_images:
+                    if not img.is_thumbnail and img.image:
                         url = request.build_absolute_uri(img.image.url) if request else img.image.url
                         image_urls.append(url)
 

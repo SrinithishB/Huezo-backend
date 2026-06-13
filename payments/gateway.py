@@ -98,6 +98,10 @@ def handle_payment_captured(payment_entity):
     except PaymentTransaction.DoesNotExist:
         return False, "Transaction not found."
 
+    # Prevent duplicate payment processing (idempotency check)
+    if transaction.status == PaymentStatus.PAID:
+        return True, "Payment already captured."
+
     # Update transaction
     transaction.status            = PaymentStatus.PAID
     transaction.payment_reference = payment_id
@@ -124,6 +128,10 @@ def handle_payment_failed(payment_entity):
         )
     except PaymentTransaction.DoesNotExist:
         return False, "Transaction not found."
+
+    # Prevent processing failures for already paid or failed transactions
+    if transaction.status in (PaymentStatus.PAID, PaymentStatus.FAILED):
+        return True, f"Transaction already in state: {transaction.status}."
 
     transaction.status         = PaymentStatus.FAILED
     transaction.failure_reason = error_description

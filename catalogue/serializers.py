@@ -66,7 +66,7 @@ class WLPrototypeDetailSerializer(serializers.ModelSerializer):
         return None
 
     def get_images(self, obj):
-        images = obj.images.filter(is_thumbnail=False)
+        images = [img for img in obj.images.all() if not img.is_thumbnail]
         request = self.context.get("request")
         return WLPrototypeImageSerializer(images, many=True, context={"request": request}).data
 
@@ -107,7 +107,7 @@ class FabricListSerializer(serializers.ModelSerializer):
 
     def get_thumbnail_url(self, obj):
         request   = self.context.get("request")
-        thumbnail = obj.images.filter(is_thumbnail=True).first()
+        thumbnail = next((img for img in obj.images.all() if img.is_thumbnail), None)
         if thumbnail and thumbnail.image and request:
             return request.build_absolute_uri(thumbnail.image.url)
         return None
@@ -135,6 +135,6 @@ class FabricDetailSerializer(serializers.ModelSerializer):
         return None
 
     def get_images(self, obj):
-        images = obj.images.filter(is_thumbnail=False)
+        images = [img for img in obj.images.all() if not img.is_thumbnail]
         request = self.context.get("request")
         return FabricImageSerializer(images, many=True, context={"request": request}).data

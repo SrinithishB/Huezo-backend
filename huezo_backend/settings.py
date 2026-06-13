@@ -127,6 +127,13 @@ CORS_ALLOWED_ORIGINS = env.list(
     default=["http://localhost:3000", "http://127.0.0.1:3000"],
 )
 CORS_ALLOW_ALL_ORIGINS = env.bool("CORS_ALLOW_ALL_ORIGINS", default=False)
+if not DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = False
+
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS",
+    default=["http://localhost:3000", "http://127.0.0.1:3000"],
+)
 
 ROOT_URLCONF = 'huezo_backend.urls'
 
@@ -159,6 +166,7 @@ USE_SQLITE   = env.bool("USE_SQLITE", default=False)
 if DATABASE_URL and not USE_SQLITE:
     import dj_database_url
     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
     DATABASES = {
         "default": {

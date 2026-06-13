@@ -366,21 +366,27 @@ class OrderAdmin(RowActionsMixin, ModelAdmin):
             "refunded": "#8e44ad",
         }
         color = color_map.get(tx.status, "#999")
-        html = f"""
-        <table style="border-collapse:collapse;font-size:13px;">
-          <tr><td style="padding:3px 10px 3px 0;color:#666;">Status</td>
-              <td style="color:{color};font-weight:600;">{tx.get_status_display()}</td></tr>
-          <tr><td style="padding:3px 10px 3px 0;color:#666;">Amount</td>
-              <td>₹{tx.amount} {tx.currency}</td></tr>
-          <tr><td style="padding:3px 10px 3px 0;color:#666;">Razorpay Order ID</td>
-              <td>{tx.razorpay_order_id or '—'}</td></tr>
-          <tr><td style="padding:3px 10px 3px 0;color:#666;">Payment Reference</td>
-              <td>{tx.payment_reference or '—'}</td></tr>
-          <tr><td style="padding:3px 10px 3px 0;color:#666;">Paid At</td>
-              <td>{tx.paid_at.strftime('%d %b %Y %H:%M') if tx.paid_at else '—'}</td></tr>
-        </table>
-        """
-        return mark_safe(html)
+        return format_html(
+            '<table style="border-collapse:collapse;font-size:13px;">'
+            '  <tr><td style="padding:3px 10px 3px 0;color:#666;">Status</td>'
+            '      <td style="color:{};font-weight:600;">{}</td></tr>'
+            '  <tr><td style="padding:3px 10px 3px 0;color:#666;">Amount</td>'
+            '      <td>₹{} {}</td></tr>'
+            '  <tr><td style="padding:3px 10px 3px 0;color:#666;">Razorpay Order ID</td>'
+            '      <td>{}</td></tr>'
+            '  <tr><td style="padding:3px 10px 3px 0;color:#666;">Payment Reference</td>'
+            '      <td>{}</td></tr>'
+            '  <tr><td style="padding:3px 10px 3px 0;color:#666;">Paid At</td>'
+            '      <td>{}</td></tr>'
+            '</table>',
+            color,
+            tx.get_status_display(),
+            tx.amount,
+            tx.currency,
+            tx.razorpay_order_id or '—',
+            tx.payment_reference or '—',
+            tx.paid_at.strftime('%d %b %Y %H:%M') if tx.paid_at else '—'
+        )
     payment_info.short_description = "Payment Details"
 
     def download_actions(self, obj):

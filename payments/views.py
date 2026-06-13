@@ -131,10 +131,12 @@ class PaymentStatusView(APIView):
         from orders.models import Order
 
         try:
-            if request.user.role == "customer":
+            if request.user.role in ("admin", "staff"):
+                order = Order.objects.get(id=order_id)
+            elif request.user.role == "customer":
                 order = Order.objects.get(id=order_id, customer_user=request.user)
             else:
-                order = Order.objects.get(id=order_id)
+                return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
         except Order.DoesNotExist:
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -204,10 +206,12 @@ class PaymentVerifyView(APIView):
 
         # Get the order
         try:
-            if request.user.role == "customer":
+            if request.user.role in ("admin", "staff"):
+                order = Order.objects.get(id=order_id)
+            elif request.user.role == "customer":
                 order = Order.objects.get(id=order_id, customer_user=request.user)
             else:
-                order = Order.objects.get(id=order_id)
+                return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
         except Order.DoesNotExist:
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 

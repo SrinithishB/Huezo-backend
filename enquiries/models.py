@@ -1,6 +1,8 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from huezo_backend.utils.uploads import SecureUploadTo, validate_file_size
+
 
 
 class Enquiry(models.Model):
@@ -120,7 +122,7 @@ class EnquiryImage(models.Model):
     enquiry = models.ForeignKey(Enquiry, on_delete=models.CASCADE, related_name='images')
 
     # Actual file upload
-    image           = models.ImageField(upload_to="enquiries/images/", null=True, blank=True, help_text="Uploaded enquiry image")
+    image           = models.ImageField(upload_to=SecureUploadTo("enquiries/images/"), validators=[validate_file_size], null=True, blank=True, help_text="Uploaded enquiry image")
     file_name       = models.CharField(max_length=255)
     file_size_bytes = models.IntegerField(null=True, blank=True)
     mime_type       = models.CharField(max_length=100, null=True, blank=True)

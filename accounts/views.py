@@ -36,6 +36,16 @@ from .serializers import (
 )
 from .permissions import IsAdminOrStaff
 
+class OTPRateThrottle(AnonRateThrottle):
+    rate = "5/hour"
+    scope = "otp"
+
+
+class LoginRateThrottle(AnonRateThrottle):
+    rate = "10/hour"
+    scope = "login"
+
+
 
 # ======================================================================
 # HELPERS
@@ -82,19 +92,32 @@ class LoginView(APIView):
     Public — validates credentials, handles lockout, returns JWT tokens.
     """
     permission_classes = [AllowAny]
+    throttle_classes   = [LoginRateThrottle]
+
+    def _get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0]
+        return request.META.get('REMOTE_ADDR')
 
     def post(self, request):
+        email = request.data.get("email", "")
         serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user   = serializer.validated_data["user"]
-        tokens = get_tokens_for_user(user)
-        return Response(
-            {
-                "message": "Login successful.",
-                "user": {"id": str(user.id), "email": user.email, "role": user.role},
-                **tokens,
-            }
-        )
+        try:
+            serializer.is_valid(raise_exception=True)
+            user   = serializer.validated_data["user"]
+            tokens = get_tokens_for_user(user)
+            logger.info(f"API Login success for {email} (IP: {self._get_client_ip(request)})")
+            return Response(
+                {
+                    "message": "Login successful.",
+                    "user": {"id": str(user.id), "email": user.email, "role": user.role},
+                    **tokens,
+                }
+            )
+        except Exception as e:
+            logger.warning(f"API Login failure for {email} (IP: {self._get_client_ip(request)}). Error: {str(e)}")
+            raise e
 
 
 class LogoutView(APIView):
@@ -196,14 +219,6 @@ class MyCustomerProfileView(generics.RetrieveUpdateAPIView):
 # FORGOT PASSWORD — OTP FLOW
 # ======================================================================
 
-class OTPRateThrottle(AnonRateThrottle):
-    rate = "5/hour"
-    scope = "otp"
-
-
-class LoginRateThrottle(AnonRateThrottle):
-    rate = "10/hour"
-    scope = "login"
 
 
 class ForgotPasswordRequestView(APIView):
@@ -225,11 +240,15 @@ class ForgotPasswordRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Always return the same message to prevent email enumeration
+        # Check if the user exists before generating/sending OTP
         try:
             user = User.objects.get(email=email, is_active=True)
         except User.DoesNotExist:
-            return Response({"message": "If this email is registered, an OTP has been sent."})
+            logger.warning(f"Forgot password request for non-existent email: {email}")
+            return Response(
+                {"error": "User with this email does not exist."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         # Use secrets for cryptographically secure OTP
         otp        = f"{secrets.randbelow(1000000):06d}"
@@ -269,7 +288,7 @@ class ForgotPasswordRequestView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        return Response({"message": "If this email is registered, an OTP has been sent."})
+        return Response({"message": "An OTP has been sent to your email."})
 
 
 class ForgotPasswordVerifyOTPView(APIView):

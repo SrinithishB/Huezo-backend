@@ -3,6 +3,8 @@ import ast
 from django.core.validators import MaxValueValidator
 from django.db import models
 from django import forms
+from huezo_backend.utils.uploads import SecureUploadTo, validate_file_size
+
 
 
 class FitSizesFormField(forms.CharField):
@@ -88,7 +90,8 @@ class WLPrototype(models.Model):
 
     # Media — actual file upload
     thumbnail = models.ImageField(
-        upload_to="catalogue/thumbnails/",
+        upload_to=SecureUploadTo("catalogue/thumbnails/"),
+        validators=[validate_file_size],
         null=True,
         blank=True,
         help_text="Primary display image (upload from admin)",
@@ -144,7 +147,8 @@ class WLPrototypeImage(models.Model):
 
     # Actual file upload
     image = models.ImageField(
-        upload_to="catalogue/images/",
+        upload_to=SecureUploadTo("catalogue/images/"),
+        validators=[validate_file_size],
         null=True,
         blank=True,
         help_text="Gallery image (upload from admin)",
@@ -288,7 +292,7 @@ class FabricsCatalogueImage(models.Model):
         help_text="Parent catalogue entry",
     )
 
-    image        = models.ImageField(upload_to="fabrics/images/", help_text="Fabric swatch or detail image")
+    image        = models.ImageField(upload_to=SecureUploadTo("fabrics/images/"), validators=[validate_file_size], help_text="Fabric swatch or detail image")
     is_thumbnail = models.BooleanField(default=False, help_text="Main swatch display image")
     sort_order   = models.IntegerField(default=0)
     uploaded_at  = models.DateTimeField(auto_now_add=True)

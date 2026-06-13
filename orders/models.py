@@ -4,6 +4,8 @@ import uuid
 from django.core.validators import MaxValueValidator
 from django.db import models
 from django.conf import settings
+from huezo_backend.utils.uploads import SecureUploadTo, validate_file_size
+
 
 
 class OrderType(models.TextChoices):
@@ -544,7 +546,7 @@ class OrderImage(models.Model):
     id    = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.ForeignKey(Order, on_delete=models.CASCADE,
                                related_name="images")
-    image       = models.ImageField(upload_to="orders/images/", null=True, blank=True)
+    image       = models.ImageField(upload_to=SecureUploadTo("orders/images/"), validators=[validate_file_size], null=True, blank=True)
     file_name   = models.CharField(max_length=200)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 

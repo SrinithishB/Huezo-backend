@@ -1,12 +1,14 @@
 import uuid
 from django.db import models
+from huezo_backend.utils.uploads import SecureUploadTo, validate_file_size
+
 
 
 class Banner(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     title      = models.CharField(max_length=200, null=True, blank=True, help_text="Optional banner title")
-    image      = models.ImageField(upload_to="banners/", help_text="Banner image")
+    image      = models.ImageField(upload_to=SecureUploadTo("banners/"), validators=[validate_file_size], help_text="Banner image")
     link_url   = models.URLField(max_length=500, null=True, blank=True, help_text="Optional click-through URL")
     is_active  = models.BooleanField(default=True, help_text="Controls visibility on the app")
     sort_order = models.SmallIntegerField(default=0, help_text="Lower numbers appear first")
